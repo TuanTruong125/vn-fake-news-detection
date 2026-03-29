@@ -1,0 +1,74 @@
+version: 1
+dataset_group: internal
+sources:
+  - source_id: fix_test_data
+    enabled: true
+    path: data/raw/internal/fix_test_data.csv
+    text_columns: [Maintext]
+    label_column: Label
+    published_at_column: null
+    url_column: null
+    domain_column: null
+    source_domain_default: unknown
+    content_type: news
+    label_confidence: 0.90
+
+  - source_id: update_train_data
+    enabled: true
+    path: data/raw/internal/update_train_data.csv
+    text_columns: [Maintext]
+    label_column: Label
+    published_at_column: null
+    url_column: null
+    domain_column: null
+    source_domain_default: unknown
+    content_type: news
+    label_confidence: 0.90
+
+  - source_id: update_val_data
+    enabled: true
+    path: data/raw/internal/update_val_data.csv
+    text_columns: [Maintext]
+    label_column: Label
+    published_at_column: null
+    url_column: null
+    domain_column: null
+    source_domain_default: unknown
+    content_type: news
+    label_confidence: 0.90
+
+  - source_id: full_dataset
+    enabled: true
+    path: data/raw/internal/full_dataset.csv
+    text_columns: [normalized_content, content]
+    label_column: is_fake
+    published_at_column: published_at
+    url_column: url
+    domain_column: source
+    source_domain_default: unknown
+    content_type: news
+    label_confidence: 0.95
+
+  - source_id: public_train
+    enabled: true
+    path: data/raw/internal/public_train.csv
+    text_columns: [post_message]
+    label_column: label
+    published_at_column: timestamp_post
+    url_column: null
+    domain_column: null
+    source_domain_default: facebook.com
+    content_type: social
+    label_confidence: 0.80
+
+  - source_id: warmup_training_dataset
+    enabled: true
+    path: data/raw/internal/warmup_training_dataset.csv
+    text_columns: [post_message]
+    label_column: label
+    published_at_column: timestamp_post
+    url_column: null
+    domain_column: null
+    source_domain_default: facebook.com
+    content_type: social
+    label_confidence: 0.80

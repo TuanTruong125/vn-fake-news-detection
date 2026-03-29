@@ -1,0 +1,51 @@
+version: 1
+master_schema:
+  name: master_dataset_v1
+  columns:
+    - name: sample_id
+      dtype: string
+      nullable: false
+    - name: text_raw
+      dtype: string
+      nullable: false
+    - name: text_clean
+      dtype: string
+      nullable: false
+    - name: hash_text
+      dtype: string
+      nullable: false
+    - name: label_binary
+      dtype: int
+      nullable: false
+    - name: label_name
+      dtype: string
+      nullable: false
+    - name: source_file
+      dtype: string
+      nullable: false
+    - name: source_domain
+      dtype: string
+      nullable: true
+    - name: content_type
+      dtype: string
+      nullable: false
+    - name: published_at
+      dtype: string
+      nullable: true
+    - name: label_confidence
+      dtype: float
+      nullable: false
+    - name: text_length
+      dtype: int
+      nullable: false
+    - name: split
+      dtype: string
+      nullable: false
+
+constraints:
+  label_binary_allowed: [0, 1]
+  label_name_allowed: [real, fake]
+  content_type_allowed: [news, social]
+  split_allowed: [train, val, test, external_test]
+  sample_id_equals_hash_text: true
+  hash_algorithm: md5

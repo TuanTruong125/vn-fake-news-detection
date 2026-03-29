@@ -1,0 +1,14 @@
+version: 1
+split:
+  ratios:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  random_state: 42
+  shuffle: true
+  stratify_by: label_binary
+  apply_to: internal
+  deduplicate_before_split: true
+  leakage_key: hash_text
+  internal_split_values: [train, val, test]
+  external_split_value: external_test
