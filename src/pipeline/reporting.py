@@ -222,6 +222,83 @@ def plot_pipeline_row_flow(stage_rows: list[dict[str, Any]], output_path: Path) 
     plt.close(fig)
 
 
+# Plot suspected glued-text ratio by source to compare relative noise levels.
+def plot_normalize_suspected_ratio(normalize_df: pd.DataFrame, output_path: Path) -> None:
+    if "source_id" not in normalize_df.columns:
+        return
+    if "suspected_glued_ratio" in normalize_df.columns:
+        ratio_df = normalize_df[["source_id", "suspected_glued_ratio"]].copy()
+    elif all(col in normalize_df.columns for col in ["suspected_glued_rows", "rows_output"]):
+        ratio_df = normalize_df[["source_id", "suspected_glued_rows", "rows_output"]].copy()
+        ratio_df["suspected_glued_ratio"] = ratio_df["suspected_glued_rows"] / ratio_df["rows_output"].clip(lower=1)
+        ratio_df = ratio_df[["source_id", "suspected_glued_ratio"]]
+    else:
+        return
+    ratio_df = ratio_df[ratio_df["source_id"].astype(str) != "__ALL__"].set_index("source_id")
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ratio_percent = ratio_df["suspected_glued_ratio"] * 100.0
+    ratio_percent.plot(kind="bar", ax=ax, color="#E45756")
+    ax.set_title("Suspected Glued-Text Ratio by Source")
+    ax.set_xlabel("source_id")
+    ax.set_ylabel("ratio (%)")
+    ax.grid(axis="y", alpha=0.25)
+    plt.xticks(rotation=30, ha="right")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=140)
+    plt.close(fig)
+
+
+# Plot normalize changed ratio by source to show text modification coverage.
+def plot_normalize_changed_ratio(normalize_df: pd.DataFrame, output_path: Path) -> None:
+    required_cols = ["source_id", "changed_count", "rows_output"]
+    if any(col not in normalize_df.columns for col in required_cols):
+        return
+    plot_df = normalize_df[required_cols].copy()
+    plot_df = plot_df[plot_df["source_id"].astype(str) != "__ALL__"]
+    plot_df["changed_ratio"] = plot_df["changed_count"] / plot_df["rows_output"].clip(lower=1)
+    plot_df = plot_df.set_index("source_id")
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    (plot_df["changed_ratio"] * 100.0).plot(kind="bar", ax=ax, color="#4C78A8")
+    ax.set_title("Normalize Changed Ratio by Source")
+    ax.set_xlabel("source_id")
+    ax.set_ylabel("ratio (%)")
+    ax.grid(axis="y", alpha=0.25)
+    plt.xticks(rotation=30, ha="right")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=140)
+    plt.close(fig)
+
+
+# Plot empty-after-clean ratio by source to verify empty text is controlled.
+def plot_normalize_empty_ratio(normalize_df: pd.DataFrame, output_path: Path) -> None:
+    if "source_id" not in normalize_df.columns:
+        return
+    if "empty_after_clean_ratio" in normalize_df.columns:
+        ratio_df = normalize_df[["source_id", "empty_after_clean_ratio"]].copy()
+    elif all(col in normalize_df.columns for col in ["empty_after_clean_count", "rows_output"]):
+        ratio_df = normalize_df[["source_id", "empty_after_clean_count", "rows_output"]].copy()
+        ratio_df["empty_after_clean_ratio"] = (
+            ratio_df["empty_after_clean_count"] / ratio_df["rows_output"].clip(lower=1)
+        )
+        ratio_df = ratio_df[["source_id", "empty_after_clean_ratio"]]
+    else:
+        return
+    ratio_df = ratio_df[ratio_df["source_id"].astype(str) != "__ALL__"].set_index("source_id")
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    (ratio_df["empty_after_clean_ratio"] * 100.0).plot(kind="bar", ax=ax, color="#72B7B2")
+    ax.set_title("Empty-After-Clean Ratio by Source")
+    ax.set_xlabel("source_id")
+    ax.set_ylabel("ratio (%)")
+    ax.grid(axis="y", alpha=0.25)
+    plt.xticks(rotation=30, ha="right")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=140)
+    plt.close(fig)
+
+
 # Build a compact stage before/after summary from stage logs.
 def build_stage_rows(
     ingest_df: pd.DataFrame,
@@ -371,6 +448,24 @@ def main() -> None:
         "p75": float(master_df["text_length"].quantile(0.75)),
         "max": float(master_df["text_length"].max()),
     }
+    normalize_noise_signals = {
+        "punctuation_spacing_normalized_count": int(
+            normalize_df["punctuation_spacing_normalized_count"].sum()
+        )
+        if "punctuation_spacing_normalized_count" in normalize_df.columns
+        else 0,
+        "suspected_glued_rows": int(normalize_df["suspected_glued_rows"].sum())
+        if "suspected_glued_rows" in normalize_df.columns
+        else 0,
+        "rows_output_total": int(normalize_df["rows_output"].sum())
+        if "rows_output" in normalize_df.columns
+        else 0,
+    }
+    normalize_noise_signals["suspected_glued_ratio"] = (
+        normalize_noise_signals["suspected_glued_rows"] / normalize_noise_signals["rows_output_total"]
+        if normalize_noise_signals["rows_output_total"] > 0
+        else 0.0
+    )
 
     stage_rows = build_stage_rows(
         ingest_df=ingest_df,
@@ -391,6 +486,9 @@ def main() -> None:
         "label_distribution_by_content_type": "reports/figures/label_distribution_by_content_type.png",
         "text_length_boxplot_by_split": "reports/figures/text_length_boxplot_by_split.png",
         "pipeline_row_flow_before_after": "reports/figures/pipeline_row_flow_before_after.png",
+        "normalize_suspected_ratio_by_source": "reports/figures/normalize_suspected_ratio_by_source.png",
+        "normalize_changed_ratio_by_source": "reports/figures/normalize_changed_ratio_by_source.png",
+        "empty_after_clean_ratio_by_source": "reports/figures/empty_after_clean_ratio_by_source.png",
     }
     plot_label_distribution(master_df, "Label Distribution - Master", repo_root / figure_paths["label_distribution_master"])
     plot_label_distribution(train_df, "Label Distribution - Train", repo_root / figure_paths["label_distribution_train"])
@@ -410,6 +508,18 @@ def main() -> None:
     )
     plot_text_length_boxplot(master_df, repo_root / figure_paths["text_length_boxplot_by_split"])
     plot_pipeline_row_flow(stage_rows, repo_root / figure_paths["pipeline_row_flow_before_after"])
+    plot_normalize_suspected_ratio(
+        normalize_df,
+        repo_root / figure_paths["normalize_suspected_ratio_by_source"],
+    )
+    plot_normalize_changed_ratio(
+        normalize_df,
+        repo_root / figure_paths["normalize_changed_ratio_by_source"],
+    )
+    plot_normalize_empty_ratio(
+        normalize_df,
+        repo_root / figure_paths["empty_after_clean_ratio_by_source"],
+    )
 
     overall_status = determine_status(issues)
 
@@ -479,6 +589,7 @@ def main() -> None:
             ],
         },
         "text_length_stats": text_length_stats,
+        "normalize_noise_signals": normalize_noise_signals,
         "figures": figure_paths,
         "issues": issues,
     }
@@ -530,7 +641,17 @@ def main() -> None:
                 f"p75={text_length_stats['p75']:.2f}, max={text_length_stats['max']:.0f}"
             ),
             "",
-            "6) Issues",
+            "6) Normalize Noise Signals",
+            (
+                "- punctuation_spacing_normalized_count: "
+                f"{normalize_noise_signals['punctuation_spacing_normalized_count']}"
+            ),
+            (
+                f"- suspected_glued_rows: {normalize_noise_signals['suspected_glued_rows']} "
+                f"({normalize_noise_signals['suspected_glued_ratio']:.2%})"
+            ),
+            "",
+            "7) Issues",
         ]
     )
     if issues:
