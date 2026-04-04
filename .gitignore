@@ -11,5 +11,6 @@ data/processed/*.csv
 logs/*
 !logs/.gitkeep
 
+reports/*
 reports/figures/*
 !reports/figures/.gitkeep
