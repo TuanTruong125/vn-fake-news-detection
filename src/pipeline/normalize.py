@@ -12,9 +12,14 @@ import yaml
 
 REQUIRED_COLUMNS = ["source_id", "row_index_raw", "text_raw_source"]
 EMPTY_AFTER_CLEAN_WARNING_THRESHOLD = 0.20
+SUSPECTED_GLUED_WARNING_THRESHOLD = 0.02
 URL_PATTERN = re.compile(r"(https?://\S+|www\.\S+)", flags=re.IGNORECASE)
 URL_PLACEHOLDER_PATTERN = re.compile(r"<\s*url\s*>", flags=re.IGNORECASE)
+ABBREVIATION_DOT_PATTERN = re.compile(r"\b(?:[A-ZĐ]{1,6}\.){1,}[A-ZĐ]{1,10}\b")
+DOTTED_NUMBER_PATTERN = re.compile(r"\b\d+(?:\.\d+)+\b")
 ISSUE_COLUMNS = ["run_timestamp", "source_id", "severity", "issue_code", "count", "detail"]
+PUNCT_SIDE_EFFECT_WARNING_MIN_BASE = 20
+PUNCT_SIDE_EFFECT_WARNING_DROP_RATIO = 0.25
 
 
 class NormalizeError(Exception):
@@ -77,6 +82,55 @@ def normalize_whitespace(text: str) -> str:
     return out.strip()
 
 
+# Normalize punctuation spacing without breaking numeric time patterns.
+def normalize_punctuation_spacing(text: str) -> str:
+    out = text
+
+    # Protect ellipsis tokens to avoid accidental split like ". . .".
+    out = out.replace("...", "__ELLIPSIS__")
+
+    # Normalize spacing around comma/semicolon/question/exclamation marks.
+    out = re.sub(r"\s+([,;!?])", r"\1", out)
+    out = re.sub(r"([,;!?])(?=[^\s\n])", r"\1 ", out)
+
+    # Normalize colon spacing only when not part of numeric tokens like 13:30.
+    out = re.sub(r"(?<!\d)\s+:(?!\d)", ":", out)
+    out = re.sub(r"(?<!\d):(?![\s\n\d])", ": ", out)
+
+    # Normalize period spacing conservatively for likely sentence boundaries only.
+    out = re.sub(r"(?<=[a-zà-ỹ0-9\"'\)\]])\.(?=[A-ZÀ-Ỹ])", ". ", out)
+
+    # Restore ellipsis tokens.
+    out = out.replace("__ELLIPSIS__", "...")
+    return out
+
+
+# Count suspicious glued-word tokens for warning-only quality monitoring.
+def count_suspected_glued_tokens(text: str) -> int:
+    count = 0
+    for token in text.split():
+        bare = token.strip(".,;:!?\"'()[]{}")
+        if len(bare) < 8:
+            continue
+        if "_" in bare or any(ch.isdigit() for ch in bare):
+            continue
+        if not re.fullmatch(r"[A-Za-zÀ-ỹ]+", bare):
+            continue
+        # Focus only on tokens carrying Vietnamese diacritics.
+        decomposed = unicodedata.normalize("NFD", bare.lower())
+        has_diacritic = any(unicodedata.category(ch) == "Mn" for ch in decomposed)
+        if not has_diacritic:
+            continue
+        # Convert to base Latin letters and count vowel groups as syllable proxy.
+        base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+        base = base.replace("đ", "d")
+        vowel_groups = re.findall(r"[aeiouy]+", base)
+        # Mark as suspicious when one token likely contains multiple glued syllables.
+        if len(vowel_groups) >= 2:
+            count += 1
+    return count
+
+
 # Run the full normalization pipeline for one text value and return flags.
 def normalize_text(text: str) -> dict[str, Any]:
     # Step 1: replace literal "/n" with actual newline.
@@ -94,17 +148,35 @@ def normalize_text(text: str) -> dict[str, Any]:
     step_4 = URL_PATTERN.sub(" ", step_3)
     flag_removed_url = step_4 != step_2
 
-    # Step 5: normalize spaces/newlines and trim final boundaries.
-    step_5 = normalize_whitespace(step_4)
-    flag_whitespace_normalized = step_5 != step_4
+    # Count dot-based tokens before punctuation spacing to detect side effects.
+    abbr_before_punct = len(ABBREVIATION_DOT_PATTERN.findall(step_4))
+    numdot_before_punct = len(DOTTED_NUMBER_PATTERN.findall(step_4))
+
+    # Step 5: normalize punctuation spacing for readability and consistency.
+    step_5 = normalize_punctuation_spacing(step_4)
+    flag_punctuation_spacing_normalized = step_5 != step_4
+
+    # Step 6: normalize spaces/newlines and trim final boundaries.
+    step_6 = normalize_whitespace(step_5)
+    flag_whitespace_normalized = step_6 != step_5
+    suspected_glued_token_count = count_suspected_glued_tokens(step_6)
+    abbr_after_punct = len(ABBREVIATION_DOT_PATTERN.findall(step_6))
+    numdot_after_punct = len(DOTTED_NUMBER_PATTERN.findall(step_6))
 
     return {
-        "text_clean": step_5,
+        "text_clean": step_6,
         "flag_replaced_slash_n": bool(flag_replaced_slash_n),
         "flag_changed_nfc": bool(flag_changed_nfc),
         "flag_removed_url": bool(flag_removed_url),
+        "flag_punctuation_spacing_normalized": bool(flag_punctuation_spacing_normalized),
         "flag_whitespace_normalized": bool(flag_whitespace_normalized),
-        "flag_empty_after_clean": bool(step_5 == ""),
+        "flag_empty_after_clean": bool(step_6 == ""),
+        "suspected_glued_token_count": int(suspected_glued_token_count),
+        "flag_suspected_glued_token": bool(suspected_glued_token_count > 0),
+        "abbr_before_punct": int(abbr_before_punct),
+        "abbr_after_punct": int(abbr_after_punct),
+        "numdot_before_punct": int(numdot_before_punct),
+        "numdot_after_punct": int(numdot_after_punct),
     }
 
 
@@ -133,9 +205,16 @@ def normalize_one_source(
         "slash_n_replaced_count": 0,
         "nfc_changed_count": 0,
         "url_removed_count": 0,
+        "punctuation_spacing_normalized_count": 0,
         "whitespace_normalized_count": 0,
         "empty_after_clean_count": 0,
         "empty_after_clean_ratio": 0.0,
+        "suspected_glued_rows": 0,
+        "suspected_glued_ratio": 0.0,
+        "abbr_before_punct_total": 0,
+        "abbr_after_punct_total": 0,
+        "numdot_before_punct_total": 0,
+        "numdot_after_punct_total": 0,
         "status": "PASS",
     }
 
@@ -180,8 +259,15 @@ def normalize_one_source(
     out_df["flag_replaced_slash_n"] = normalized_df["flag_replaced_slash_n"]
     out_df["flag_changed_nfc"] = normalized_df["flag_changed_nfc"]
     out_df["flag_removed_url"] = normalized_df["flag_removed_url"]
+    out_df["flag_punctuation_spacing_normalized"] = normalized_df["flag_punctuation_spacing_normalized"]
     out_df["flag_whitespace_normalized"] = normalized_df["flag_whitespace_normalized"]
     out_df["flag_empty_after_clean"] = normalized_df["flag_empty_after_clean"]
+    out_df["suspected_glued_token_count"] = normalized_df["suspected_glued_token_count"]
+    out_df["flag_suspected_glued_token"] = normalized_df["flag_suspected_glued_token"]
+    out_df["abbr_before_punct"] = normalized_df["abbr_before_punct"]
+    out_df["abbr_after_punct"] = normalized_df["abbr_after_punct"]
+    out_df["numdot_before_punct"] = normalized_df["numdot_before_punct"]
+    out_df["numdot_after_punct"] = normalized_df["numdot_after_punct"]
 
     summary["rows_output"] = int(len(out_df))
 
@@ -213,6 +299,9 @@ def normalize_one_source(
     summary["slash_n_replaced_count"] = int(out_df["flag_replaced_slash_n"].sum())
     summary["nfc_changed_count"] = int(out_df["flag_changed_nfc"].sum())
     summary["url_removed_count"] = int(out_df["flag_removed_url"].sum())
+    summary["punctuation_spacing_normalized_count"] = int(
+        out_df["flag_punctuation_spacing_normalized"].sum()
+    )
     summary["whitespace_normalized_count"] = int(out_df["flag_whitespace_normalized"].sum())
     summary["empty_after_clean_count"] = int(out_df["flag_empty_after_clean"].sum())
     summary["empty_after_clean_ratio"] = (
@@ -220,6 +309,16 @@ def normalize_one_source(
         if summary["rows_output"] > 0
         else 0.0
     )
+    summary["suspected_glued_rows"] = int(out_df["flag_suspected_glued_token"].sum())
+    summary["suspected_glued_ratio"] = (
+        float(summary["suspected_glued_rows"] / summary["rows_output"])
+        if summary["rows_output"] > 0
+        else 0.0
+    )
+    summary["abbr_before_punct_total"] = int(out_df["abbr_before_punct"].sum())
+    summary["abbr_after_punct_total"] = int(out_df["abbr_after_punct"].sum())
+    summary["numdot_before_punct_total"] = int(out_df["numdot_before_punct"].sum())
+    summary["numdot_after_punct_total"] = int(out_df["numdot_after_punct"].sum())
 
     if summary["empty_after_clean_ratio"] > EMPTY_AFTER_CLEAN_WARNING_THRESHOLD:
         add_issue(
@@ -234,6 +333,53 @@ def normalize_one_source(
                 f"threshold={EMPTY_AFTER_CLEAN_WARNING_THRESHOLD:.2f}"
             ),
         )
+    if summary["suspected_glued_ratio"] > SUSPECTED_GLUED_WARNING_THRESHOLD:
+        add_issue(
+            source_issues,
+            run_timestamp,
+            source_id,
+            "WARNING",
+            "high_suspected_glued_ratio",
+            summary["suspected_glued_rows"],
+            (
+                f"ratio={summary['suspected_glued_ratio']:.6f}, "
+                f"threshold={SUSPECTED_GLUED_WARNING_THRESHOLD:.2f}"
+            ),
+        )
+    if summary["abbr_before_punct_total"] >= PUNCT_SIDE_EFFECT_WARNING_MIN_BASE:
+        abbr_drop_ratio = 1.0 - (
+            summary["abbr_after_punct_total"] / summary["abbr_before_punct_total"]
+        )
+        if abbr_drop_ratio > PUNCT_SIDE_EFFECT_WARNING_DROP_RATIO:
+            add_issue(
+                source_issues,
+                run_timestamp,
+                source_id,
+                "WARNING",
+                "punctuation_side_effect_abbreviation_drop",
+                int(summary["abbr_before_punct_total"] - summary["abbr_after_punct_total"]),
+                (
+                    f"drop_ratio={abbr_drop_ratio:.6f}, before={summary['abbr_before_punct_total']}, "
+                    f"after={summary['abbr_after_punct_total']}"
+                ),
+            )
+    if summary["numdot_before_punct_total"] >= PUNCT_SIDE_EFFECT_WARNING_MIN_BASE:
+        numdot_drop_ratio = 1.0 - (
+            summary["numdot_after_punct_total"] / summary["numdot_before_punct_total"]
+        )
+        if numdot_drop_ratio > PUNCT_SIDE_EFFECT_WARNING_DROP_RATIO:
+            add_issue(
+                source_issues,
+                run_timestamp,
+                source_id,
+                "WARNING",
+                "punctuation_side_effect_numdot_drop",
+                int(summary["numdot_before_punct_total"] - summary["numdot_after_punct_total"]),
+                (
+                    f"drop_ratio={numdot_drop_ratio:.6f}, before={summary['numdot_before_punct_total']}, "
+                    f"after={summary['numdot_after_punct_total']}"
+                ),
+            )
 
     summary["status"] = determine_status(source_issues)
     if summary["status"] != "FAIL":
