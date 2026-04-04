@@ -1,0 +1,36 @@
+DATA REPORT (MIDTERM)
+Run timestamp: 2026-04-04T16:12:34+07:00
+Overall status: PASS
+
+1) Stage Row Flow (Before vs After)
+- ingest: input=16970, output=16970, removed=0 (0.00%)
+- normalize: input=16970, output=16970, removed=0 (0.00%)
+- map_labels: input=16970, output=16970, removed=0 (0.00%)
+- quality_filter: input=16970, output=16862, removed=108 (0.64%)
+- deduplicate: input=16862, output=16588, removed=274 (1.62%)
+- split: input=16588, output=16588, removed=0 (0.00%)
+
+2) Master Stats
+- Rows: 16588
+- Label 0 (real): 10323
+- Label 1 (fake): 6265
+- Source files: 6
+- Content types: {'news': 11787, 'social': 4801}
+
+3) Split Stats
+- Train: 13270 (80.00%)
+- Val:   1659 (10.00%)
+- Test:  1659 (10.00%)
+
+4) Leakage (recomputed from processed data)
+- train ∩ val:  0
+- train ∩ test: 0
+- val ∩ test:   0
+- total overlap: 0
+
+5) Text Length Stats (master)
+- min=22, p25=311.75, mean=1804.08, median=1433.00, p75=2454.00, max=32767
+
+6) Issues
+- None
+
