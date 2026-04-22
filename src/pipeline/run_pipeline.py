@@ -22,6 +22,7 @@ STAGES = [
     ("deduplicate", "deduplicate.py"),
     ("build_master", "build_master.py"),
     ("split_data", "split_data.py"),
+    ("prepare_ml_text", "prepare_ml_text.py"),
     ("reporting", "reporting.py"),
 ]
 

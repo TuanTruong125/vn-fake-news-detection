@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -132,7 +133,7 @@ def build_pipeline_overview_md() -> str:
     lines = [
         "# Pipeline Overview",
         "",
-        "raw -> ingest -> validate -> normalize -> map_labels -> quality_filter -> deduplicate -> build_master -> split -> reporting",
+        "raw -> ingest -> validate -> normalize -> map_labels -> quality_filter -> deduplicate -> build_master -> split -> prepare_ml_text -> reporting",
         "",
         "## Core Rules",
         "- Label convention: 0=real, 1=fake.",
@@ -141,6 +142,26 @@ def build_pipeline_overview_md() -> str:
         "- Leakage checks use hash_text intersection across train/val/test.",
     ]
     return "\n".join(lines) + "\n"
+
+
+# Annotate bar charts with value labels on top of each bar.
+def annotate_bar_values(ax: Any, value_fmt: str = "{:.0f}", as_percent: bool = False) -> None:
+    ymax = ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 1.0
+    for patch in ax.patches:
+        height = float(patch.get_height())
+        if height <= 0:
+            continue
+        x = patch.get_x() + patch.get_width() / 2.0
+        y = height + ymax * 0.01
+        text = value_fmt.format(height * 100.0) if as_percent else value_fmt.format(height)
+        ax.text(x, y, text, ha="center", va="bottom", fontsize=8)
+
+
+# Annotate line charts with value labels near each point.
+def annotate_line_points(ax: Any, x_vals: list[int], y_vals: list[float], value_fmt: str = "{:.0f}") -> None:
+    ymax = ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 1.0
+    for x, y in zip(x_vals, y_vals):
+        ax.text(x, y + ymax * 0.012, value_fmt.format(y), ha="center", va="bottom", fontsize=8)
 
 
 # Plot label distribution for one dataset split/master.
@@ -152,6 +173,7 @@ def plot_label_distribution(df: pd.DataFrame, title: str, output_path: Path) -> 
     ax.set_xlabel("label_name")
     ax.set_ylabel("count")
     ax.grid(axis="y", alpha=0.25)
+    annotate_bar_values(ax, value_fmt="{:.0f}")
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
     plt.close(fig)
@@ -176,6 +198,10 @@ def plot_stacked_label_distribution(
     ax.set_xlabel(group_col)
     ax.set_ylabel("count")
     ax.grid(axis="y", alpha=0.25)
+    # Show total count on top of each stacked column for easier presentation reading.
+    totals = pivot.sum(axis=1).tolist()
+    for idx, total in enumerate(totals):
+        ax.text(idx, total + max(1.0, max(totals) * 0.01), f"{int(total)}", ha="center", va="bottom", fontsize=8)
     plt.xticks(rotation=35, ha="right")
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
@@ -191,11 +217,15 @@ def plot_text_length_boxplot(master_df: pd.DataFrame, output_path: Path) -> None
         data.append(part.values)
         labels.append(split_name)
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.boxplot(data, tick_labels=labels, showfliers=False)
+    box_obj = ax.boxplot(data, tick_labels=labels, showfliers=False)
     ax.set_title("Text Length Distribution by Split")
     ax.set_xlabel("split")
     ax.set_ylabel("text_length")
     ax.grid(axis="y", alpha=0.25)
+    # Display median values to make boxplot quantiles easy to read in slides.
+    for idx, median_line in enumerate(box_obj["medians"], start=1):
+        median_val = float(median_line.get_ydata()[0])
+        ax.text(idx, median_val, f"{median_val:.0f}", ha="center", va="bottom", fontsize=8)
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
     plt.close(fig)
@@ -217,6 +247,8 @@ def plot_pipeline_row_flow(stage_rows: list[dict[str, Any]], output_path: Path) 
     ax.set_title("Pipeline Row Flow (Before vs After)")
     ax.grid(alpha=0.25)
     ax.legend()
+    annotate_line_points(ax, list(x), [float(v) for v in before_vals], value_fmt="{:.0f}")
+    annotate_line_points(ax, list(x), [float(v) for v in after_vals], value_fmt="{:.0f}")
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
     plt.close(fig)
@@ -243,6 +275,7 @@ def plot_normalize_suspected_ratio(normalize_df: pd.DataFrame, output_path: Path
     ax.set_xlabel("source_id")
     ax.set_ylabel("ratio (%)")
     ax.grid(axis="y", alpha=0.25)
+    annotate_bar_values(ax, value_fmt="{:.2f}")
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
@@ -265,6 +298,7 @@ def plot_normalize_changed_ratio(normalize_df: pd.DataFrame, output_path: Path) 
     ax.set_xlabel("source_id")
     ax.set_ylabel("ratio (%)")
     ax.grid(axis="y", alpha=0.25)
+    annotate_bar_values(ax, value_fmt="{:.2f}")
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
@@ -293,10 +327,170 @@ def plot_normalize_empty_ratio(normalize_df: pd.DataFrame, output_path: Path) ->
     ax.set_xlabel("source_id")
     ax.set_ylabel("ratio (%)")
     ax.grid(axis="y", alpha=0.25)
+    annotate_bar_values(ax, value_fmt="{:.2f}")
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()
     fig.savefig(output_path, dpi=140)
     plt.close(fig)
+
+
+# Pick one available ML text column in preferred order.
+def select_ml_text_column(df: pd.DataFrame) -> str | None:
+    for col in ["text_ml_seg_lower", "text_ml", "text_ml_seg"]:
+        if col in df.columns:
+            return col
+    return None
+
+
+# Build n-gram counter from one tokenized text series.
+def build_ngram_counter(text_series: pd.Series, n: int) -> Counter:
+    counter: Counter = Counter()
+    for text in text_series.fillna("").astype(str):
+        tokens = [tok for tok in text.split() if tok]
+        if len(tokens) < n:
+            continue
+        grams = [" ".join(tokens[i : i + n]) for i in range(len(tokens) - n + 1)]
+        counter.update(grams)
+    return counter
+
+
+# Plot top n-grams with one subplot per label and numeric annotations.
+def plot_top_ngrams_by_label(
+    train_ml_df: pd.DataFrame,
+    text_col: str,
+    n: int,
+    top_k: int,
+    title: str,
+    output_path: Path,
+) -> None:
+    labels = [("real", 0), ("fake", 1)]
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    for ax, (label_name, label_bin) in zip(axes, labels):
+        subset = train_ml_df[train_ml_df["label_binary"] == label_bin]
+        counter = build_ngram_counter(subset[text_col], n=n)
+        top_items = counter.most_common(top_k)
+        if not top_items:
+            ax.text(0.5, 0.5, "No data", ha="center", va="center")
+            ax.set_title(f"{label_name}")
+            ax.axis("off")
+            continue
+        grams = [x[0] for x in top_items][::-1]
+        counts = [x[1] for x in top_items][::-1]
+        bars = ax.barh(range(len(grams)), counts, color="#4C78A8" if label_bin == 0 else "#F58518")
+        ax.set_yticks(range(len(grams)))
+        ax.set_yticklabels(grams, fontsize=8)
+        ax.set_title(f"{label_name}")
+        ax.grid(axis="x", alpha=0.25)
+        # Show counts at bar ends for easier manual inspection.
+        for bar, value in zip(bars, counts):
+            ax.text(bar.get_width() + max(1, max(counts) * 0.01), bar.get_y() + bar.get_height() / 2, f"{int(value)}", va="center", fontsize=8)
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=140)
+    plt.close(fig)
+
+
+# Plot before/after ML text length to show preprocessing impact.
+def plot_doc_length_before_after_ml(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    train_ml_df: pd.DataFrame,
+    val_ml_df: pd.DataFrame,
+    test_ml_df: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    rows: list[dict[str, Any]] = []
+    split_pairs = [
+        ("train", train_df, train_ml_df),
+        ("val", val_df, val_ml_df),
+        ("test", test_df, test_ml_df),
+    ]
+    for split_name, raw_df, ml_df in split_pairs:
+        token_col = "text_ml_token_count" if "text_ml_token_count" in ml_df.columns else None
+        if token_col is None:
+            continue
+        rows.append(
+            {
+                "split": split_name,
+                "avg_text_length_chars": float(raw_df["text_length"].mean()),
+                "avg_text_length_tokens": float(ml_df[token_col].mean()),
+            }
+        )
+
+    if not rows:
+        return
+
+    stats_df = pd.DataFrame(rows)
+    x = range(len(stats_df))
+    width = 0.38
+
+    fig, ax = plt.subplots(figsize=(9, 4.8))
+    bars_chars = ax.bar([i - width / 2 for i in x], stats_df["avg_text_length_chars"], width=width, label="chars", color="#72B7B2")
+    bars_tokens = ax.bar([i + width / 2 for i in x], stats_df["avg_text_length_tokens"], width=width, label="tokens", color="#E45756")
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(stats_df["split"].tolist())
+    ax.set_title("Average Document Length Before/After ML Prep")
+    ax.set_xlabel("split")
+    ax.set_ylabel("average length")
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend()
+
+    for bar in list(bars_chars) + list(bars_tokens):
+        h = float(bar.get_height())
+        ax.text(bar.get_x() + bar.get_width() / 2, h + max(1.0, float(stats_df["avg_text_length_chars"].max()) * 0.01), f"{h:.1f}", ha="center", va="bottom", fontsize=8)
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=140)
+    plt.close(fig)
+
+
+# Render word cloud when library is available, or fallback to token-frequency bars.
+def plot_wordcloud_or_fallback(
+    text_series: pd.Series,
+    title: str,
+    output_path: Path,
+    top_k_fallback: int = 25,
+) -> None:
+    text_blob = " ".join(text_series.fillna("").astype(str).tolist()).strip()
+    if not text_blob:
+        return
+
+    try:
+        from wordcloud import WordCloud  # type: ignore
+
+        wc = WordCloud(
+            width=1400,
+            height=800,
+            background_color="white",
+            collocations=False,
+        ).generate(text_blob)
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.imshow(wc, interpolation="bilinear")
+        ax.set_title(title)
+        ax.axis("off")
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=140)
+        plt.close(fig)
+    except Exception:
+        counter = build_ngram_counter(text_series, n=1)
+        top_items = counter.most_common(top_k_fallback)
+        if not top_items:
+            return
+        tokens = [x[0] for x in top_items][::-1]
+        counts = [x[1] for x in top_items][::-1]
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.barh(range(len(tokens)), counts, color="#4C78A8")
+        ax.set_yticks(range(len(tokens)))
+        ax.set_yticklabels(tokens, fontsize=8)
+        ax.set_title(f"{title} (fallback)")
+        ax.set_xlabel("count")
+        ax.grid(axis="x", alpha=0.25)
+        for bar, value in zip(bars, counts):
+            ax.text(bar.get_width() + max(1, max(counts) * 0.01), bar.get_y() + bar.get_height() / 2, f"{int(value)}", va="center", fontsize=8)
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=140)
+        plt.close(fig)
 
 
 # Build a compact stage before/after summary from stage logs.
@@ -307,10 +501,11 @@ def build_stage_rows(
     qf_df: pd.DataFrame,
     dedup_df: pd.DataFrame,
     split_df: pd.DataFrame,
+    ml_prep_df: pd.DataFrame | None = None,
 ) -> list[dict[str, Any]]:
     dedup_all = dedup_df[dedup_df["source_id"] == "__ALL__"].iloc[0]
     split_row = split_df.iloc[0]
-    return [
+    stage_rows = [
         {
             "stage": "ingest",
             "rows_before": int(ingest_df["rows_input_after_read"].sum()),
@@ -343,6 +538,20 @@ def build_stage_rows(
         },
     ]
 
+    # Include ML text preparation stage when logs are available.
+    if ml_prep_df is not None and not ml_prep_df.empty:
+        ml_all = ml_prep_df[ml_prep_df["input_file"].astype(str) == "__ALL__"]
+        if not ml_all.empty:
+            ml_row = ml_all.iloc[0]
+            stage_rows.append(
+                {
+                    "stage": "prepare_ml_text",
+                    "rows_before": int(ml_row["rows_input"]),
+                    "rows_after": int(ml_row["rows_output"]),
+                }
+            )
+    return stage_rows
+
 
 # Execute reporting stage and generate report artifacts.
 def main() -> None:
@@ -360,6 +569,21 @@ def main() -> None:
     train_df = read_csv_required(processed_dir / "train.csv")
     val_df = read_csv_required(processed_dir / "val.csv")
     test_df = read_csv_required(processed_dir / "test.csv")
+    train_ml_path = processed_dir / "train_ml.csv"
+    val_ml_path = processed_dir / "val_ml.csv"
+    test_ml_path = processed_dir / "test_ml.csv"
+    train_ml_df = read_csv_required(train_ml_path) if train_ml_path.exists() else pd.DataFrame()
+    val_ml_df = read_csv_required(val_ml_path) if val_ml_path.exists() else pd.DataFrame()
+    test_ml_df = read_csv_required(test_ml_path) if test_ml_path.exists() else pd.DataFrame()
+    if train_ml_df.empty or val_ml_df.empty or test_ml_df.empty:
+        add_issue(
+            issues,
+            run_timestamp,
+            "WARNING",
+            "missing_processed_ml_split_files",
+            1,
+            "Expected data/processed/train_ml.csv, val_ml.csv, test_ml.csv",
+        )
 
     ingest_df = select_latest_run(read_csv_required(logs_dir / "ingest_summary.csv"))
     normalize_df = select_latest_run(read_csv_required(logs_dir / "normalize_summary.csv"))
@@ -367,6 +591,19 @@ def main() -> None:
     qf_df = select_latest_run(read_csv_required(logs_dir / "quality_filter_summary.csv"))
     dedup_df = select_latest_run(read_csv_required(logs_dir / "deduplicate_summary.csv"))
     split_df = select_latest_run(read_csv_required(logs_dir / "split_summary.csv"))
+    ml_prep_summary_path = logs_dir / "prepare_ml_text_summary.csv"
+    if ml_prep_summary_path.exists():
+        ml_prep_df = select_latest_run(read_csv_required(ml_prep_summary_path))
+    else:
+        ml_prep_df = pd.DataFrame()
+        add_issue(
+            issues,
+            run_timestamp,
+            "WARNING",
+            "missing_prepare_ml_text_summary",
+            1,
+            "prepare_ml_text_summary.csv not found; stage metrics are omitted",
+        )
 
     # Cross-check stage-level row consistency using both logs and processed outputs.
     if "__ALL__" not in set(dedup_df["source_id"].astype(str)):
@@ -406,6 +643,30 @@ def main() -> None:
             abs((len(train_df) + len(val_df) + len(test_df)) - len(master_df)),
             "len(train)+len(val)+len(test) must equal len(master)",
         )
+
+    # Cross-check ML-prepared split rows against processed master size.
+    if not ml_prep_df.empty:
+        ml_all = ml_prep_df[ml_prep_df["input_file"].astype(str) == "__ALL__"]
+        if ml_all.empty:
+            add_issue(
+                issues,
+                run_timestamp,
+                "WARNING",
+                "missing_prepare_ml_text_all_row",
+                1,
+                "prepare_ml_text_summary.csv has no __ALL__ row",
+            )
+        else:
+            ml_all_row = ml_all.iloc[0]
+            if int(ml_all_row["rows_output"]) != len(master_df):
+                add_issue(
+                    issues,
+                    run_timestamp,
+                    "ERROR",
+                    "prepare_ml_text_master_row_mismatch",
+                    abs(int(ml_all_row["rows_output"]) - len(master_df)),
+                    f"prepare_ml_text_rows_output={int(ml_all_row['rows_output'])}, master_rows={len(master_df)}",
+                )
 
     # Recompute leakage directly from processed data for trustable reporting.
     train_hash = set(train_df["hash_text"].astype(str))
@@ -466,6 +727,42 @@ def main() -> None:
         if normalize_noise_signals["rows_output_total"] > 0
         else 0.0
     )
+    ml_text_prep_signals = {
+        "segment_backend_actual": "",
+        "rows_output_total": 0,
+        "changed_count_seg": 0,
+        "changed_count_seg_lower": 0,
+        "presegmented_passthrough_count": 0,
+        "changed_count": 0,
+        "changed_ratio": 0.0,
+        "empty_text_ml_count": 0,
+        "empty_text_ml_ratio": 0.0,
+        "avg_tokens_before_filter": 0.0,
+        "avg_tokens_seg": 0.0,
+        "avg_tokens_seg_lower": 0.0,
+        "avg_tokens_after_filter": 0.0,
+    }
+    if not ml_prep_df.empty:
+        ml_all = ml_prep_df[ml_prep_df["input_file"].astype(str) == "__ALL__"]
+        if not ml_all.empty:
+            ml_all_row = ml_all.iloc[0]
+            rows_output_total = int(ml_all_row["rows_output"])
+            changed_count = int(ml_all_row["changed_count"])
+            ml_text_prep_signals = {
+                "segment_backend_actual": str(ml_all_row.get("segment_backend_actual", "")),
+                "rows_output_total": rows_output_total,
+                "changed_count_seg": int(ml_all_row.get("changed_count_seg", changed_count)),
+                "changed_count_seg_lower": int(ml_all_row.get("changed_count_seg_lower", changed_count)),
+                "presegmented_passthrough_count": int(ml_all_row.get("presegmented_passthrough_count", 0)),
+                "changed_count": changed_count,
+                "changed_ratio": (changed_count / rows_output_total) if rows_output_total > 0 else 0.0,
+                "empty_text_ml_count": int(ml_all_row["empty_text_ml_count"]),
+                "empty_text_ml_ratio": float(ml_all_row["empty_text_ml_ratio"]),
+                "avg_tokens_before_filter": float(ml_all_row["avg_tokens_before_filter"]),
+                "avg_tokens_seg": float(ml_all_row.get("avg_tokens_seg", ml_all_row["avg_tokens_after_filter"])),
+                "avg_tokens_seg_lower": float(ml_all_row.get("avg_tokens_seg_lower", ml_all_row["avg_tokens_after_filter"])),
+                "avg_tokens_after_filter": float(ml_all_row["avg_tokens_after_filter"]),
+            }
 
     stage_rows = build_stage_rows(
         ingest_df=ingest_df,
@@ -474,6 +771,7 @@ def main() -> None:
         qf_df=qf_df,
         dedup_df=dedup_df,
         split_df=split_df,
+        ml_prep_df=ml_prep_df,
     )
 
     # Generate required and supporting figures for the midterm report package.
@@ -489,6 +787,13 @@ def main() -> None:
         "normalize_suspected_ratio_by_source": "reports/figures/normalize_suspected_ratio_by_source.png",
         "normalize_changed_ratio_by_source": "reports/figures/normalize_changed_ratio_by_source.png",
         "empty_after_clean_ratio_by_source": "reports/figures/empty_after_clean_ratio_by_source.png",
+        "doc_length_before_vs_after_ml": "reports/figures/doc_length_before_vs_after_ml.png",
+        "wordcloud_real": "reports/figures/wordcloud_real.png",
+        "wordcloud_fake": "reports/figures/wordcloud_fake.png",
+        "top_unigram_by_label": "reports/figures/top_unigram_by_label.png",
+        "top_bigram_by_label": "reports/figures/top_bigram_by_label.png",
+        "top_trigram_by_label": "reports/figures/top_trigram_by_label.png",
+        "top_fourgram_by_label": "reports/figures/top_fourgram_by_label.png",
     }
     plot_label_distribution(master_df, "Label Distribution - Master", repo_root / figure_paths["label_distribution_master"])
     plot_label_distribution(train_df, "Label Distribution - Train", repo_root / figure_paths["label_distribution_train"])
@@ -520,6 +825,71 @@ def main() -> None:
         normalize_df,
         repo_root / figure_paths["empty_after_clean_ratio_by_source"],
     )
+    if not train_ml_df.empty and not val_ml_df.empty and not test_ml_df.empty:
+        plot_doc_length_before_after_ml(
+            train_df=train_df,
+            val_df=val_df,
+            test_df=test_df,
+            train_ml_df=train_ml_df,
+            val_ml_df=val_ml_df,
+            test_ml_df=test_ml_df,
+            output_path=repo_root / figure_paths["doc_length_before_vs_after_ml"],
+        )
+        ml_text_col = select_ml_text_column(train_ml_df)
+        if ml_text_col is None:
+            add_issue(
+                issues,
+                run_timestamp,
+                "WARNING",
+                "missing_ml_text_column_for_vocab_figures",
+                1,
+                "No text_ml_seg_lower/text_ml/text_ml_seg column found in train_ml.csv",
+            )
+        else:
+            train_real_ml = train_ml_df[train_ml_df["label_binary"] == 0]
+            train_fake_ml = train_ml_df[train_ml_df["label_binary"] == 1]
+            plot_wordcloud_or_fallback(
+                text_series=train_real_ml[ml_text_col],
+                title="WordCloud - Real (train)",
+                output_path=repo_root / figure_paths["wordcloud_real"],
+            )
+            plot_wordcloud_or_fallback(
+                text_series=train_fake_ml[ml_text_col],
+                title="WordCloud - Fake (train)",
+                output_path=repo_root / figure_paths["wordcloud_fake"],
+            )
+            plot_top_ngrams_by_label(
+                train_ml_df=train_ml_df,
+                text_col=ml_text_col,
+                n=1,
+                top_k=20,
+                title="Top Unigram by Label (train)",
+                output_path=repo_root / figure_paths["top_unigram_by_label"],
+            )
+            plot_top_ngrams_by_label(
+                train_ml_df=train_ml_df,
+                text_col=ml_text_col,
+                n=2,
+                top_k=20,
+                title="Top Bigram by Label (train)",
+                output_path=repo_root / figure_paths["top_bigram_by_label"],
+            )
+            plot_top_ngrams_by_label(
+                train_ml_df=train_ml_df,
+                text_col=ml_text_col,
+                n=3,
+                top_k=20,
+                title="Top Trigram by Label (train)",
+                output_path=repo_root / figure_paths["top_trigram_by_label"],
+            )
+            plot_top_ngrams_by_label(
+                train_ml_df=train_ml_df,
+                text_col=ml_text_col,
+                n=4,
+                top_k=20,
+                title="Top Four-gram by Label (train)",
+                output_path=repo_root / figure_paths["top_fourgram_by_label"],
+            )
 
     overall_status = determine_status(issues)
 
@@ -590,6 +960,7 @@ def main() -> None:
         },
         "text_length_stats": text_length_stats,
         "normalize_noise_signals": normalize_noise_signals,
+        "ml_text_prep_signals": ml_text_prep_signals,
         "figures": figure_paths,
         "issues": issues,
     }
@@ -651,7 +1022,24 @@ def main() -> None:
                 f"({normalize_noise_signals['suspected_glued_ratio']:.2%})"
             ),
             "",
-            "7) Issues",
+            "7) ML Text Prep Signals",
+            f"- segment_backend_actual: {ml_text_prep_signals['segment_backend_actual']}",
+            f"- changed_count_seg: {ml_text_prep_signals['changed_count_seg']}",
+            f"- changed_count_seg_lower: {ml_text_prep_signals['changed_count_seg_lower']}",
+            f"- presegmented_passthrough_count: {ml_text_prep_signals['presegmented_passthrough_count']}",
+            f"- changed_count: {ml_text_prep_signals['changed_count']} ({ml_text_prep_signals['changed_ratio']:.2%})",
+            (
+                f"- empty_text_ml_count: {ml_text_prep_signals['empty_text_ml_count']} "
+                f"({ml_text_prep_signals['empty_text_ml_ratio']:.2%})"
+            ),
+            (
+                f"- avg_tokens_before_filter: {ml_text_prep_signals['avg_tokens_before_filter']:.2f}, "
+                f"avg_tokens_seg: {ml_text_prep_signals['avg_tokens_seg']:.2f}, "
+                f"avg_tokens_seg_lower: {ml_text_prep_signals['avg_tokens_seg_lower']:.2f}, "
+                f"avg_tokens_after_filter: {ml_text_prep_signals['avg_tokens_after_filter']:.2f}"
+            ),
+            "",
+            "8) Issues",
         ]
     )
     if issues:

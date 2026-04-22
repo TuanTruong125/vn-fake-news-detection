@@ -47,3 +47,29 @@ sources:
       "true": 1
       "0": 0
       "1": 1
+
+  fake_news_label1:
+    label_column: label
+    mapping:
+      "1": 1
+      "1.0": 1
+
+  fake_social_label1:
+    label_column: label
+    mapping:
+      "1": 1
+      "1.0": 1
+
+  real_news_dataset:
+    label_column: label_binary
+    mapping:
+      "0": 0
+      "0.0": 0
+
+  SNS_data:
+    label_column: label
+    mapping:
+      "0": 0
+      "1": 1
+      "0.0": 0
+      "1.0": 1

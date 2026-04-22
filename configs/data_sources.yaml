@@ -72,3 +72,51 @@ sources:
     source_domain_default: facebook.com
     content_type: social
     label_confidence: 0.80
+
+  - source_id: fake_news_label1
+    enabled: true
+    path: data/raw/internal/fake_news_label1.csv
+    text_columns: [text]
+    label_column: label
+    published_at_column: null
+    url_column: null
+    domain_column: null
+    source_domain_default: unknown
+    content_type: news
+    label_confidence: 0.80
+
+  - source_id: fake_social_label1
+    enabled: true
+    path: data/raw/internal/fake_social_label1.csv
+    text_columns: [post_message]
+    label_column: label
+    published_at_column: timestamp_post
+    url_column: null
+    domain_column: null
+    source_domain_default: facebook.com
+    content_type: social
+    label_confidence: 0.75
+
+  - source_id: real_news_dataset
+    enabled: true
+    path: data/raw/internal/real_news_dataset.csv
+    text_columns: [text_raw]
+    label_column: label_binary
+    published_at_column: published_at
+    url_column: url
+    domain_column: source_domain
+    source_domain_default: unknown
+    content_type: news
+    label_confidence: 1.00
+
+  - source_id: SNS_data
+    enabled: true
+    path: data/raw/internal/SNS_data.csv
+    text_columns: [content]
+    label_column: label
+    published_at_column: null
+    url_column: null
+    domain_column: null
+    source_domain_default: facebook.com
+    content_type: social
+    label_confidence: 0.70
