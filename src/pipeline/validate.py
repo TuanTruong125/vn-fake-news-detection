@@ -325,10 +325,10 @@ def validate_one_source(
             source_issues,
             run_timestamp,
             source_id,
-            "ERROR",
+            "WARNING",
             "label_null",
             null_label_count,
-            "empty label_raw rows found",
+            "empty label_raw rows found; rows will be dropped in map_labels",
         )
 
     label_counts = label_series.value_counts(dropna=False).sort_values(ascending=False)

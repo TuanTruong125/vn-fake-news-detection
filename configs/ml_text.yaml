@@ -1,0 +1,24 @@
+version: 1
+ml_text:
+  enabled: true
+  input_files:
+    - data/processed/train.csv
+    - data/processed/val.csv
+    - data/processed/test.csv
+  output_suffix: "_ml"
+  text_input_column: text_clean
+  segment_backend: py_vncorenlp
+  segment_model_dir: resources/vncorenlp
+  primary_variant: lower
+  replace_underscore_with_space: false
+  remove_url_tokens: true
+  keep_sentence_boundary_token: true
+  preserve_social_punctuation_signals: true
+  preserve_social_emoji: true
+  remove_news_emoji: true
+  respect_presegmented_input: true
+  keep_numbers: true
+  min_token_length: 2
+  remove_stopwords: false
+  stopwords_path: configs/stopwords_vi.txt
+  log_top_tokens: 30

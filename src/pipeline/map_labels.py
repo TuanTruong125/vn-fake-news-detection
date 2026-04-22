@@ -182,10 +182,10 @@ def map_one_source(
             source_issues,
             run_timestamp,
             source_id,
-            "ERROR",
+            "WARNING",
             "label_null",
             label_null_count,
-            "empty label_raw rows found before mapping",
+            "empty label_raw rows are dropped before mapping",
         )
 
     raw_mapping = {str(k).strip(): int(v) for k, v in mapping_entry["mapping"].items()}
@@ -242,9 +242,12 @@ def map_one_source(
         summary["rows_output"] = 0
         return summary, source_issues
 
+    # Drop empty raw labels and keep only valid mapped rows.
+    keep_mask = (~label_null_mask) & (~mapped_series.isna())
+
     # Apply mapped labels and canonical label names for downstream steps.
-    out_df = df.copy()
-    out_df["label_binary"] = mapped_series.astype(int)
+    out_df = df.loc[keep_mask].copy()
+    out_df["label_binary"] = mapped_series.loc[keep_mask].astype(int)
     out_df["label_name"] = out_df["label_binary"].map({0: "real", 1: "fake"})
     summary["rows_output"] = int(len(out_df))
 

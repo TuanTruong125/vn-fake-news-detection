@@ -26,7 +26,7 @@ EXPECTED_MASTER_COLUMNS = [
 
 ALLOWED_CONTENT_TYPES = {"news", "social"}
 ALLOWED_BINARY_LABELS = {0, 1}
-EXPECTED_DECLARED_SOURCES = 6
+MIN_DECLARED_SOURCES = 6
 
 
 class ConfigValidationError(Exception):
@@ -319,10 +319,10 @@ def main() -> None:
     declared_source_ids, enabled_source_ids, label_column_by_source = validate_data_sources(
         data_sources, repo_root
     )
-    # Keep this strict count for midterm scope control.
-    if len(declared_source_ids) != EXPECTED_DECLARED_SOURCES:
+    # Keep a minimum source-count guard while allowing future source expansion.
+    if len(declared_source_ids) < MIN_DECLARED_SOURCES:
         raise ConfigValidationError(
-            f"Expected exactly {EXPECTED_DECLARED_SOURCES} declared internal sources in "
+            f"Expected at least {MIN_DECLARED_SOURCES} declared internal sources in "
             f"data_sources.yaml, found {len(declared_source_ids)}."
         )
 
