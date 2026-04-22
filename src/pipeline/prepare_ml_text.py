@@ -15,6 +15,11 @@ import yaml
 
 ISSUE_COLUMNS = ["run_timestamp", "input_file", "severity", "issue_code", "count", "detail"]
 URL_PATTERN = re.compile(r"(https?://\S+|www\.\S+)", flags=re.IGNORECASE)
+URL_PLACEHOLDER_PATTERN = re.compile(r"<\s*url\s*>", flags=re.IGNORECASE)
+THOUSAND_DOT_PATTERN = re.compile(r"(?<=\d)\.(?=\d{3}\b)")
+THOUSAND_COMMA_PATTERN = re.compile(r"(?<=\d),(?=\d{3}\b)")
+INTRAWORD_HYPHEN_PATTERN = re.compile(r"(?<=\w)-(?=\w)", flags=re.UNICODE)
+COVID_VARIANT_PATTERN = re.compile(r"\bcovid[\s_-]*19\b", flags=re.IGNORECASE)
 SEGMENT_TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÀ-ỹĐđ_]+")
 TOKEN_PATTERN_TEXT_ONLY = re.compile(r"[a-zà-ỹđ_]+", flags=re.IGNORECASE)
 TOKEN_PATTERN_WITH_NUMBER = re.compile(r"[0-9a-zà-ỹđ_]+", flags=re.IGNORECASE)
@@ -32,22 +37,12 @@ EMOJI_PATTERN = re.compile(
     "]",
     flags=re.UNICODE,
 )
-SOCIAL_EXCLAMATION_PATTERN = re.compile(r"!{2,}")
-SOCIAL_QUESTION_PATTERN = re.compile(r"\?{2,}")
-SENTENCE_PUNCT_PATTERN = re.compile(r"[.!?;:]+")
+PUNCT_PATTERN = re.compile(r"[^\w\s]", flags=re.UNICODE)
 HASHTAG_PATTERN = re.compile(r"#([^\s#]+)", flags=re.UNICODE)
 HASHTAG_SANITIZE_PATTERN = re.compile(r"[^0-9A-Za-zÀ-ỹĐđ]+", flags=re.UNICODE)
 HASHTAG_MULTI_UNDERSCORE_PATTERN = re.compile(r"_+")
 SOCIAL_EMOJI_TOKEN = "EMOJI"
 SOCIAL_HASHTAG_PREFIX = "HASHTAG_"
-LEGACY_CONTROL_TOKENS = {
-    "__eos__",
-    "__multi_excl__",
-    "__multi_q__",
-    "eos",
-    "multi_excl",
-    "multi_q",
-}
 EMPTY_RATIO_WARNING_THRESHOLD = 0.20
 
 
@@ -221,6 +216,19 @@ def normalize_hashtag_token(match: re.Match[str]) -> str:
     return f" {SOCIAL_HASHTAG_PREFIX}{tag_clean} "
 
 
+# Preserve key numeric/entity semantics before tokenization.
+def light_normalize_text(text: str) -> str:
+    out = text
+    # Keep numeric value of thousands separators (7.628 -> 7628, 12,500 -> 12500).
+    out = THOUSAND_DOT_PATTERN.sub("", out)
+    out = THOUSAND_COMMA_PATTERN.sub("", out)
+    # Preserve hyphenated entities by converting in-word hyphen to underscore.
+    out = INTRAWORD_HYPHEN_PATTERN.sub("_", out)
+    # Canonicalize common disease form for stable features.
+    out = COVID_VARIANT_PATTERN.sub("covid_19", out)
+    return out
+
+
 # Pre-clean raw text before segmentation.
 def pre_clean_text(
     text: str,
@@ -229,14 +237,15 @@ def pre_clean_text(
     remove_url_tokens: bool,
     preserve_social_emoji: bool,
     remove_news_emoji: bool,
-    preserve_social_punctuation_signals: bool,
-    keep_sentence_boundary_token: bool,
 ) -> str:
     out = text
     if replace_underscore_with_space:
         out = out.replace("_", " ")
     if remove_url_tokens:
         out = URL_PATTERN.sub(" ", out)
+        out = URL_PLACEHOLDER_PATTERN.sub(" ", out)
+
+    out = light_normalize_text(out)
     out = HASHTAG_PATTERN.sub(normalize_hashtag_token, out)
 
     # Keep emoji signal for social domain, remove icon/emoji noise for news domain.
@@ -246,10 +255,8 @@ def pre_clean_text(
     elif remove_news_emoji:
         out = EMOJI_PATTERN.sub(" ", out)
 
-    # Keep punctuation markers out of output so only semantic tokens remain.
-    out = SOCIAL_EXCLAMATION_PATTERN.sub(" ", out)
-    out = SOCIAL_QUESTION_PATTERN.sub(" ", out)
-    out = SENTENCE_PUNCT_PATTERN.sub(" ", out)
+    # Always remove punctuation
+    out = PUNCT_PATTERN.sub(" ", out)
 
     out = re.sub(r"\s+", " ", out).strip()
     return out
@@ -281,14 +288,17 @@ def tokenize_and_filter(
                 normalized_tokens.append(tok)
         tokens = normalized_tokens
 
-    # Remove legacy control tokens from previous pipeline versions.
-    tokens = [tok for tok in tokens if tok not in LEGACY_CONTROL_TOKENS]
-
     tokens_before_filter = list(tokens)
 
     # Apply minimum token length on token characters excluding underscores.
     if min_token_length > 1:
-        tokens = [tok for tok in tokens if len(tok.replace("_", "")) >= min_token_length]
+        filtered_tokens: list[str] = []
+        for tok in tokens:
+            token_plain = tok.replace("_", "")
+            # Preserve short numeric tokens (e.g., 2, 7) because they can carry factual cues.
+            if token_plain.isdigit() or len(token_plain) >= min_token_length:
+                filtered_tokens.append(tok)
+        tokens = filtered_tokens
     if remove_stopwords:
         tokens = [tok for tok in tokens if tok.lower() not in stopwords]
 
@@ -355,8 +365,6 @@ def parse_ml_config(config: dict[str, Any], repo_root: Path) -> dict[str, Any]:
         "primary_variant": primary_variant,
         "preserve_social_emoji": bool(section.get("preserve_social_emoji", True)),
         "remove_news_emoji": bool(section.get("remove_news_emoji", True)),
-        "preserve_social_punctuation_signals": bool(section.get("preserve_social_punctuation_signals", True)),
-        "keep_sentence_boundary_token": bool(section.get("keep_sentence_boundary_token", True)),
         "respect_presegmented_input": bool(section.get("respect_presegmented_input", True)),
     }
 
@@ -462,8 +470,6 @@ def process_one_file(
             remove_url_tokens=cfg["remove_url_tokens"],
             preserve_social_emoji=cfg["preserve_social_emoji"],
             remove_news_emoji=cfg["remove_news_emoji"],
-            preserve_social_punctuation_signals=cfg["preserve_social_punctuation_signals"],
-            keep_sentence_boundary_token=cfg["keep_sentence_boundary_token"],
         )
         if cfg["respect_presegmented_input"] and is_likely_presegmented(pre_cleaned):
             segmented_text = pre_cleaned

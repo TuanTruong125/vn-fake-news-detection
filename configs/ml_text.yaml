@@ -12,8 +12,6 @@ ml_text:
   primary_variant: lower
   replace_underscore_with_space: false
   remove_url_tokens: true
-  keep_sentence_boundary_token: true
-  preserve_social_punctuation_signals: true
   preserve_social_emoji: true
   remove_news_emoji: true
   respect_presegmented_input: true
