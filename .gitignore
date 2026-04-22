@@ -1,13 +1,26 @@
-﻿__pycache__/
+﻿# IDEs
+.vscode/
+
+# Python
+__pycache__/
 *.pyc
 .venv/
 .ipynb_checkpoints/
 
+# Data
+data/staging/*.csv
+!data/staging/.gitkeep
 data/processed/*.csv
 !data/processed/.gitkeep
 
+# Logs
 logs/*
 !logs/.gitkeep
 
+# Reports
+reports/*
 reports/figures/*
 !reports/figures/.gitkeep
+
+# Resouresces
+resources/vncorenlp/

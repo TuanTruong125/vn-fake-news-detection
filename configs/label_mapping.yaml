@@ -1,0 +1,75 @@
+version: 1
+global:
+  label_binary_to_name:
+    0: real
+    1: fake
+  label_name_to_binary:
+    real: 0
+    fake: 1
+
+sources:
+  fix_test_data:
+    label_column: Label
+    mapping:
+      "0": 0
+      "1": 1
+
+  update_train_data:
+    label_column: Label
+    mapping:
+      "0": 0
+      "1": 1
+
+  update_val_data:
+    label_column: Label
+    mapping:
+      "0": 0
+      "1": 1
+
+  public_train:
+    label_column: label
+    mapping:
+      "0": 0
+      "1": 1
+
+  warmup_training_dataset:
+    label_column: label
+    mapping:
+      "0": 0
+      "1": 1
+
+  full_dataset:
+    label_column: is_fake
+    mapping:
+      "False": 0
+      "True": 1
+      "false": 0
+      "true": 1
+      "0": 0
+      "1": 1
+
+  fake_news_label1:
+    label_column: label
+    mapping:
+      "1": 1
+      "1.0": 1
+
+  fake_social_label1:
+    label_column: label
+    mapping:
+      "1": 1
+      "1.0": 1
+
+  real_news_dataset:
+    label_column: label_binary
+    mapping:
+      "0": 0
+      "0.0": 0
+
+  SNS_data:
+    label_column: label
+    mapping:
+      "0": 0
+      "1": 1
+      "0.0": 0
+      "1.0": 1
