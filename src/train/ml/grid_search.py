@@ -25,8 +25,10 @@ try:
         TrainRunError,
         append_run_record,
         compute_metrics,
+        compute_feature_space_diagnostics,
         generate_run_id,
         now_iso,
+        save_artifacts,
     )
     from src.train.ml.vectorizers import (
         VectorizerConfigError,
@@ -59,8 +61,10 @@ except ModuleNotFoundError:
         TrainRunError,
         append_run_record,
         compute_metrics,
+        compute_feature_space_diagnostics,
         generate_run_id,
         now_iso,
+        save_artifacts,
     )
     from vectorizers import (  # type: ignore
         VectorizerConfigError,
@@ -250,6 +254,30 @@ def load_runs_rows(runs_path: Path) -> list[dict[str, Any]]:
         return list(reader)
 
 
+# Rewrite full runs.csv rows while preserving header contract.
+def write_runs_rows(runs_path: Path, rows: list[dict[str, Any]]) -> None:
+    with runs_path.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=RUNS_COLUMNS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({column: row.get(column, "") for column in RUNS_COLUMNS})
+
+
+# Update notes field for one run_id directly in runs.csv.
+def update_run_notes_in_csv(runs_path: Path, run_id: str, notes_payload: dict[str, Any]) -> None:
+    rows = load_runs_rows(runs_path)
+    updated = False
+    notes_json = json.dumps(notes_payload, ensure_ascii=False, separators=(",", ":"))
+    for row in rows:
+        if str(row.get("run_id", "")).strip() == run_id:
+            row["notes"] = notes_json
+            updated = True
+            break
+    if not updated:
+        raise GridSearchError(f"Cannot update notes. run_id '{run_id}' not found in runs.csv.")
+    write_runs_rows(runs_path, rows)
+
+
 # Write leaderboard CSV with deterministic ordering.
 def write_leaderboard_csv(leaderboard_path: Path, rows: list[dict[str, Any]]) -> None:
     leaderboard_path.parent.mkdir(parents=True, exist_ok=True)
@@ -343,7 +371,7 @@ def prepare_vectorized_cache_entry(
     x_val, y_val = xy_splits["val"]
     x_test, y_test = xy_splits["test"]
 
-    vectorizer, _ = build_feature_pipeline(feature_set_name=feature_set, config=config)
+    vectorizer, vectorizer_meta = build_feature_pipeline(feature_set_name=feature_set, config=config)
     vec_fit_start = time.perf_counter()
     x_train_vec = vectorizer.fit_transform(x_train)
     vec_fit_seconds = round(time.perf_counter() - vec_fit_start, 6)
@@ -354,6 +382,8 @@ def prepare_vectorized_cache_entry(
     vec_transform_seconds = round(time.perf_counter() - vec_transform_start, 6)
 
     return {
+        "vectorizer": vectorizer,
+        "vectorizer_meta": vectorizer_meta,
         "x_train_vec": x_train_vec,
         "y_train": y_train,
         "x_val_vec": x_val_vec,
@@ -363,6 +393,124 @@ def prepare_vectorized_cache_entry(
         "vec_fit_seconds": vec_fit_seconds,
         "vec_transform_seconds": vec_transform_seconds,
     }
+
+
+# Parse parameter JSON from one run row.
+def parse_run_params(run_row: dict[str, Any]) -> dict[str, Any]:
+    raw = str(run_row.get("params_json", "")).strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise GridSearchError(f"Failed to parse params_json for run_id={run_row.get('run_id')}: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise GridSearchError(f"params_json for run_id={run_row.get('run_id')} must decode to object.")
+    return parsed
+
+
+# Retrain best run from cached vectorized data and save model/vectorizer/metadata artifacts.
+def save_best_run_artifacts(
+    config: dict[str, Any],
+    runs_path: Path,
+    best_run_row: dict[str, Any],
+    cache: dict[tuple[str, str], dict[str, Any]],
+    config_path: Path,
+    random_state: int,
+) -> dict[str, Any]:
+    run_id = str(best_run_row.get("run_id", "")).strip()
+    model_name = str(best_run_row.get("model_name", "")).strip()
+    feature_set = str(best_run_row.get("feature_set", "")).strip()
+    text_variant = str(best_run_row.get("text_variant", "")).strip()
+    experiment_name = str(best_run_row.get("experiment_name", "")).strip()
+    config_version = best_run_row.get("config_version", config.get("version"))
+    run_timestamp = str(best_run_row.get("run_timestamp", "")).strip() or now_iso()
+
+    if not run_id or not model_name or not feature_set or not text_variant:
+        raise GridSearchError("Best run row is missing required fields to save artifacts.")
+
+    cache_key = (text_variant, feature_set)
+    if cache_key not in cache:
+        cache[cache_key] = prepare_vectorized_cache_entry(
+            config=config,
+            config_path=config_path,
+            text_variant=text_variant,
+            feature_set=feature_set,
+            strict_overlap=True,
+        )
+    cache_entry = cache[cache_key]
+    params = parse_run_params(best_run_row)
+
+    model, final_params = build_model(model_name, params, random_state=random_state)
+    model_fit_seconds = fit_model(model, cache_entry["x_train_vec"], cache_entry["y_train"])
+    y_val_pred, val_predict_seconds = predict_model(model, cache_entry["x_val_vec"])
+    y_test_pred, test_predict_seconds = predict_model(model, cache_entry["x_test_vec"])
+    val_metrics = compute_metrics(cache_entry["y_val"], y_val_pred)
+    test_metrics = compute_metrics(cache_entry["y_test"], y_test_pred)
+
+    feature_space_diag = compute_feature_space_diagnostics(
+        vectorizer_meta=cache_entry["vectorizer_meta"],
+        observed_feature_count=int(cache_entry["x_train_vec"].shape[1]),
+    )
+
+    metadata = {
+        "run_id": run_id,
+        "run_timestamp": run_timestamp,
+        "experiment_name": experiment_name,
+        "config_path": str(config_path.as_posix()),
+        "config_version": config_version,
+        "selection": {
+            "text_variant": text_variant,
+            "feature_set": feature_set,
+            "model_name": model_name,
+            "params": final_params,
+            "random_state": random_state,
+            "source": "ml_grid_search_best_retrain",
+        },
+        "shape": {
+            "train_rows": int(cache_entry["x_train_vec"].shape[0]),
+            "val_rows": int(cache_entry["x_val_vec"].shape[0]),
+            "test_rows": int(cache_entry["x_test_vec"].shape[0]),
+            "feature_count": int(cache_entry["x_train_vec"].shape[1]),
+            "train_nnz": int(cache_entry["x_train_vec"].nnz),
+            "val_nnz": int(cache_entry["x_val_vec"].nnz),
+            "test_nnz": int(cache_entry["x_test_vec"].nnz),
+        },
+        "timing_seconds": {
+            "vectorize_fit": cache_entry["vec_fit_seconds"],
+            "vectorize_transform": cache_entry["vec_transform_seconds"],
+            "model_fit": model_fit_seconds,
+            "val_predict": val_predict_seconds,
+            "test_predict": test_predict_seconds,
+        },
+        "metrics": {
+            "val": val_metrics,
+            "test": test_metrics,
+        },
+        "vectorizer_meta": cache_entry["vectorizer_meta"],
+        "feature_space_diagnostics": feature_space_diag,
+    }
+
+    artifact_paths = save_artifacts(
+        run_id=run_id,
+        model=model,
+        vectorizer=cache_entry["vectorizer"],
+        metadata=metadata,
+        save_as_best=True,
+    )
+
+    notes_payload = {
+        "source": "ml_grid_search",
+        "vectorize_fit_seconds": cache_entry["vec_fit_seconds"],
+        "vectorize_transform_seconds": cache_entry["vec_transform_seconds"],
+        "model_fit_seconds": model_fit_seconds,
+        "val_predict_seconds": val_predict_seconds,
+        "test_predict_seconds": test_predict_seconds,
+        "artifacts": artifact_paths,
+    }
+    update_run_notes_in_csv(runs_path, run_id, notes_payload)
+    best_run_row["notes"] = json.dumps(notes_payload, ensure_ascii=False, separators=(",", ":"))
+    return artifact_paths
 
 
 # Execute full grid search and persist runs, best config, and leaderboard.
@@ -511,6 +659,22 @@ def run_grid_search(
         reverse=True,
     )
     best_run_row = pass_rows[0]
+    print(
+        f"[ML GRID] Best run selected | run_id={best_run_row.get('run_id','')} "
+        f"model={best_run_row.get('model_name','')} "
+        f"feature_set={best_run_row.get('feature_set','')} "
+        f"text_variant={best_run_row.get('text_variant','')}"
+    )
+
+    artifact_paths = save_best_run_artifacts(
+        config=config,
+        runs_path=runs_path,
+        best_run_row=best_run_row,
+        cache=cache,
+        config_path=resolved_config_path,
+        random_state=random_state,
+    )
+    print(f"[ML GRID] Best artifacts saved: {artifact_paths}")
 
     leaderboard_rows = [
         build_leaderboard_row(
