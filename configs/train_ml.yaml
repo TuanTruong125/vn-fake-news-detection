@@ -69,3 +69,11 @@ selection:
   mode: all
   choose_best_by: f1_macro
   tie_breaker: f1_fake
+
+run:
+  default:
+    model: logistic_regression
+    params:
+      C: 0.5
+    feature_set: word
+    text_variant: text_ml_seg

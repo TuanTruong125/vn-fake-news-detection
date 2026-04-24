@@ -5,12 +5,21 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import LinearSVC
 
 
 ALLOWED_TEXT_VARIANTS = {"text_ml_seg", "text_ml_seg_lower"}
 ALLOWED_SELECTION_MODES = {"all", "best"}
 ALLOWED_METRICS = {"f1_macro", "precision_macro", "recall_macro", "accuracy", "f1_fake"}
 REQUIRED_ROOT_SECTIONS = {"version", "data", "experiment", "vectorizers", "feature_sets", "models", "selection"}
+MODEL_CLASSES = {
+    "logistic_regression": LogisticRegression,
+    "linear_svm": LinearSVC,
+    "multinomial_nb": MultinomialNB,
+}
+LOGISTIC_SOLVERS = {"lbfgs", "liblinear", "newton-cg", "newton-cholesky", "sag", "saga"}
 
 
 class MlConfigValidationError(Exception):
@@ -87,6 +96,70 @@ def validate_df_threshold(value: Any, field_name: str, allow_zero: bool) -> None
             raise MlConfigValidationError(f"{field_name} must be in (0,1] when float.")
         return
     raise MlConfigValidationError(f"{field_name} must be int or float.")
+
+
+# Validate one model parameter key against sklearn estimator supported parameters.
+def validate_model_param_key(model_name: str, param_name: str) -> None:
+    model_cls = MODEL_CLASSES.get(model_name)
+    if model_cls is None:
+        raise MlConfigValidationError(
+            f"models.{model_name} is not supported. Allowed: {sorted(MODEL_CLASSES.keys())}."
+        )
+    allowed_params = set(model_cls().get_params(deep=False).keys())
+    if param_name not in allowed_params:
+        raise MlConfigValidationError(
+            f"models.{model_name}.params.{param_name} is not a valid sklearn parameter."
+        )
+
+
+# Validate one model parameter value by type and logical domain constraints.
+def validate_model_param_value(model_name: str, param_name: str, value: Any, field_name: str) -> None:
+    if param_name in {"C", "alpha"}:
+        if not isinstance(value, (int, float)) or float(value) <= 0:
+            raise MlConfigValidationError(f"{field_name} must be a positive number.")
+        return
+
+    if param_name == "max_iter":
+        if not isinstance(value, int) or value <= 0:
+            raise MlConfigValidationError(f"{field_name} must be a positive integer.")
+        return
+
+    if model_name == "logistic_regression" and param_name == "solver":
+        if not isinstance(value, str) or value not in LOGISTIC_SOLVERS:
+            raise MlConfigValidationError(
+                f"{field_name} must be one of {sorted(LOGISTIC_SOLVERS)}."
+            )
+        return
+
+    if param_name == "class_weight":
+        if value is None:
+            return
+        if isinstance(value, str) and value == "balanced":
+            return
+        if isinstance(value, dict):
+            return
+        raise MlConfigValidationError(
+            f"{field_name} must be null, 'balanced', or a mapping."
+        )
+
+    if param_name == "fit_prior":
+        if not isinstance(value, bool):
+            raise MlConfigValidationError(f"{field_name} must be boolean.")
+        return
+
+    if param_name == "class_prior":
+        if value is None:
+            return
+        if not isinstance(value, list) or not value:
+            raise MlConfigValidationError(f"{field_name} must be a non-empty list of numbers.")
+        if not all(isinstance(item, (int, float)) and item >= 0 for item in value):
+            raise MlConfigValidationError(f"{field_name} must contain non-negative numbers.")
+        return
+
+    if param_name == "random_state":
+        if not isinstance(value, int):
+            raise MlConfigValidationError(f"{field_name} must be integer.")
+        return
 
 
 # Validate vectorizer settings and return declared vectorizer keys.
@@ -171,6 +244,7 @@ def validate_models_section(config: dict[str, Any]) -> None:
         if not isinstance(params, dict) or not params:
             raise MlConfigValidationError(f"models.{model_name}.params must be a non-empty mapping.")
         for param_name, param_values in params.items():
+            validate_model_param_key(model_name, param_name)
             values = param_values if isinstance(param_values, list) else [param_values]
             if not values:
                 raise MlConfigValidationError(f"models.{model_name}.params.{param_name} must not be empty.")
@@ -179,6 +253,12 @@ def validate_models_section(config: dict[str, Any]) -> None:
                     raise MlConfigValidationError(
                         f"models.{model_name}.params.{param_name} contains null value."
                     )
+                validate_model_param_value(
+                    model_name,
+                    param_name,
+                    value,
+                    f"models.{model_name}.params.{param_name}",
+                )
 
     if enabled_count == 0:
         raise MlConfigValidationError("At least one model must be enabled.")
@@ -295,6 +375,74 @@ def validate_root_structure(config: dict[str, Any]) -> None:
         raise MlConfigValidationError("version must be a positive integer.")
 
 
+# Validate optional run.default settings and cross-check referenced values.
+def validate_optional_run_section(config: dict[str, Any]) -> None:
+    run = config.get("run")
+    if run is None:
+        return
+    if not isinstance(run, dict):
+        raise MlConfigValidationError("run must be a mapping when provided.")
+
+    default = run.get("default")
+    if default is None:
+        return
+    if not isinstance(default, dict):
+        raise MlConfigValidationError("run.default must be a mapping when provided.")
+
+    if "model" in default:
+        model_name = default["model"]
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise MlConfigValidationError("run.default.model must be a non-empty string.")
+        models = config.get("models", {})
+        if model_name not in models:
+            raise MlConfigValidationError(
+                f"run.default.model='{model_name}' is not declared in models section."
+            )
+    else:
+        model_name = None
+
+    if "feature_set" in default:
+        feature_set = default["feature_set"]
+        if not isinstance(feature_set, str) or not feature_set.strip():
+            raise MlConfigValidationError("run.default.feature_set must be a non-empty string.")
+        feature_set_names = [
+            str(item.get("name", "")).strip()
+            for item in config.get("feature_sets", [])
+            if isinstance(item, dict)
+        ]
+        if feature_set not in feature_set_names:
+            raise MlConfigValidationError(
+                f"run.default.feature_set='{feature_set}' is not declared in feature_sets."
+            )
+
+    if "text_variant" in default:
+        text_variant = default["text_variant"]
+        if not isinstance(text_variant, str) or not text_variant.strip():
+            raise MlConfigValidationError("run.default.text_variant must be a non-empty string.")
+        text_variants = config.get("data", {}).get("text_variants", [])
+        if text_variant not in text_variants:
+            raise MlConfigValidationError(
+                f"run.default.text_variant='{text_variant}' is not declared in data.text_variants."
+            )
+
+    if "params" in default:
+        params = default["params"]
+        if not isinstance(params, dict) or not params:
+            raise MlConfigValidationError("run.default.params must be a non-empty mapping when provided.")
+        if any(value is None for value in params.values()):
+            raise MlConfigValidationError("run.default.params must not contain null values.")
+        if not model_name:
+            raise MlConfigValidationError("run.default.params requires run.default.model to be set.")
+        for param_name, param_value in params.items():
+            validate_model_param_key(model_name, param_name)
+            validate_model_param_value(
+                model_name,
+                param_name,
+                param_value,
+                f"run.default.params.{param_name}",
+            )
+
+
 # Execute end-to-end ML config validation with schema and cross-field checks.
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[3]
@@ -309,6 +457,7 @@ def main() -> None:
     validate_feature_sets_section(config, vectorizer_names)
     validate_models_section(config)
     validate_selection_section(config, declared_metrics | {primary_metric})
+    validate_optional_run_section(config)
 
     print("[ML CONFIG] Validation passed.")
     for warning in warnings:
