@@ -1,0 +1,39 @@
+server:
+  host: 127.0.0.1
+  port: 8000
+  reload: false
+  log_level: info
+
+inference:
+  default_content_type: news
+  default_top_k_per_direction: 5
+  max_input_chars: 20000
+  max_input_tokens: 512
+  include_preprocessed_text_debug: false
+
+labels:
+  0: real
+  1: fake
+
+model_selection:
+  allow_run_id_override: true
+  use_best_alias_first: true
+  best_config_path: experiments/ml/best_config.json
+
+threshold:
+  use_calibrated_threshold: true
+  fallback_threshold: 0.5
+
+cache:
+  enabled: true
+  max_entries: 3
+  eviction_policy: lru
+  reload_if_file_changed: true
+
+explanation:
+  enabled: true
+  include_decomposition: true
+
+diagnostics:
+  include_segmentation_impact_warning: true
+  include_warnings: true
