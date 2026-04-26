@@ -1,0 +1,79 @@
+version: 1
+
+data:
+  train_path: data/processed/train_ml.csv
+  val_path: data/processed/val_ml.csv
+  test_path: data/processed/test_ml.csv
+  label_column: label_binary
+  id_column: sample_id
+  text_variants:
+    - text_ml_seg
+    - text_ml_seg_lower
+
+experiment:
+  name: baseline_v1
+  primary_metric: f1_macro
+  secondary_metrics:
+    - precision_macro
+    - recall_macro
+    - accuracy
+  random_state: 42
+  max_trials: 50
+  save_model: true
+  save_vectorizer: true
+
+vectorizers:
+  word_tfidf:
+    ngram_range: [1, 2]
+    min_df: 3
+    max_df: 0.95
+    max_features: 120000
+    sublinear_tf: true
+  char_tfidf:
+    ngram_range: [3, 5]
+    min_df: 3
+    max_df: 0.98
+    max_features: 180000
+    sublinear_tf: true
+
+feature_sets:
+  - name: word
+    type: word_tfidf
+  - name: char
+    type: char_tfidf
+  - name: word_char
+    type: combined
+    parts:
+      - word_tfidf
+      - char_tfidf
+
+models:
+  logistic_regression:
+    enabled: true
+    params:
+      C: [0.5, 1.0, 2.0]
+      solver: [liblinear]
+      max_iter: [1000]
+      class_weight: [balanced]
+  linear_svm:
+    enabled: true
+    params:
+      C: [0.5, 1.0, 2.0]
+      class_weight: [balanced]
+  multinomial_nb:
+    enabled: true
+    params:
+      alpha: [0.5, 1.0]
+
+selection:
+  mode: all
+  choose_best_by: f1_macro
+  tie_breaker: f1_fake
+
+run:
+  default:
+    model: logistic_regression
+    params:
+      C: 0.5
+    feature_set: word
+    text_variant: text_ml_seg
