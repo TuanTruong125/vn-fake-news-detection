@@ -104,8 +104,7 @@ def now_iso() -> str:
 def build_run_id(experiment_name: str) -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     suffix = uuid.uuid4().hex[:8]
-    safe_name = experiment_name.replace(" ", "_")
-    return f"{ts}_{safe_name}_{suffix}"
+    return f"{ts}_phobert_{suffix}"
 
 
 # Read YAML config and validate object type.
