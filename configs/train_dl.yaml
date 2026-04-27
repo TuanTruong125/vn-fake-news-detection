@@ -9,7 +9,7 @@ data:
   id_column: sample_id
 
 experiment:
-  name: phobert_extension_v1
+  name: phobert
   random_state: 42
   primary_metric: f1_macro
   tie_breaker: f1_fake
