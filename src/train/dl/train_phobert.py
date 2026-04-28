@@ -51,6 +51,14 @@ class TrainArtifacts:
     metadata_path: Path
 
 
+@dataclass
+class ExploreArtifacts:
+    run_id: str
+    best_epoch: int
+    elapsed_seconds: float
+    val_metrics: dict[str, float]
+
+
 class TextDataset(Dataset):
     def __init__(self, encodings: dict[str, torch.Tensor], labels: np.ndarray) -> None:
         self.encodings = encodings
@@ -259,7 +267,20 @@ def load_splits(config: dict[str, Any], repo_root: Path) -> dict[str, SplitData]
 
 
 # Tokenize one split and return model-ready tensor dictionary.
-def tokenize_split(tokenizer: Any, texts: list[str], max_length: int) -> dict[str, torch.Tensor]:
+def tokenize_split(
+    tokenizer: Any,
+    texts: list[str],
+    max_length: int,
+    encoded_cache: dict[tuple[int, str], dict[str, torch.Tensor]] | None = None,
+    split_name: str | None = None,
+) -> dict[str, torch.Tensor]:
+    cache_key: tuple[int, str] | None = None
+    if encoded_cache is not None and split_name is not None:
+        cache_key = (int(max_length), str(split_name))
+        cached = encoded_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     encoded = tokenizer(
         texts,
         truncation=True,
@@ -267,10 +288,13 @@ def tokenize_split(tokenizer: Any, texts: list[str], max_length: int) -> dict[st
         max_length=max_length,
         return_tensors="pt",
     )
-    return {
+    payload = {
         "input_ids": encoded["input_ids"],
         "attention_mask": encoded["attention_mask"],
     }
+    if encoded_cache is not None and cache_key is not None:
+        encoded_cache[cache_key] = payload
+    return payload
 
 
 # Compute binary metrics aligned with ML naming conventions.
@@ -333,7 +357,17 @@ def evaluate_model(
 
 
 # Train PhoBERT classifier and persist best run artifacts.
-def train_phobert(config_path: str | Path | None = None, output_root_override: str | Path | None = None) -> TrainArtifacts:
+def train_phobert(
+    config_path: str | Path | None = None,
+    output_root_override: str | Path | None = None,
+    mode: str = "full",
+    early_epochs: int | None = None,
+    track_runs: bool = True,
+    save_artifacts: bool = True,
+    splits_override: dict[str, SplitData] | None = None,
+    tokenizer_override: Any | None = None,
+    encoded_cache: dict[tuple[int, str], dict[str, torch.Tensor]] | None = None,
+) -> TrainArtifacts | ExploreArtifacts:
     repo_root = get_repo_root()
     resolved_config_path = repo_root / "configs" / "train_dl.yaml" if config_path is None else Path(config_path)
     if not resolved_config_path.is_absolute():
@@ -376,6 +410,15 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
     max_grad_norm = float(training_cfg.get("max_grad_norm", 1.0))
     early_stopping_patience = int(training_cfg.get("early_stopping_patience", 2))
 
+    run_mode = str(mode).strip().lower()
+    if run_mode not in {"full", "explore"}:
+        raise DlTrainError("mode must be 'full' or 'explore'.")
+    if run_mode == "explore":
+        if early_epochs is None:
+            early_epochs = 1
+        num_epochs = max(1, int(early_epochs))
+        early_stopping_patience = max(1, min(early_stopping_patience, num_epochs))
+
     run_id = build_run_id(experiment_name)
     run_timestamp = now_iso()
     params_json = json.dumps(
@@ -417,18 +460,40 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
     try:
         seed_everything(seed)
 
-        splits = load_splits(config, repo_root)
-        tokenizer = AutoTokenizer.from_pretrained(pretrained_name, use_fast=False)
+        splits = splits_override if splits_override is not None else load_splits(config, repo_root)
+        tokenizer = tokenizer_override or AutoTokenizer.from_pretrained(pretrained_name, use_fast=False)
         model = AutoModelForSequenceClassification.from_pretrained(pretrained_name, num_labels=num_labels)
         model.to(device)
 
-        train_encodings = tokenize_split(tokenizer, splits["train"].texts, max_length=max_length)
-        val_encodings = tokenize_split(tokenizer, splits["val"].texts, max_length=max_length)
-        test_encodings = tokenize_split(tokenizer, splits["test"].texts, max_length=max_length)
+        train_encodings = tokenize_split(
+            tokenizer,
+            splits["train"].texts,
+            max_length=max_length,
+            encoded_cache=encoded_cache,
+            split_name="train",
+        )
+        val_encodings = tokenize_split(
+            tokenizer,
+            splits["val"].texts,
+            max_length=max_length,
+            encoded_cache=encoded_cache,
+            split_name="val",
+        )
+        test_encodings = None
+        if run_mode == "full":
+            test_encodings = tokenize_split(
+                tokenizer,
+                splits["test"].texts,
+                max_length=max_length,
+                encoded_cache=encoded_cache,
+                split_name="test",
+            )
 
         train_dataset = TextDataset(train_encodings, splits["train"].labels)
         val_dataset = TextDataset(val_encodings, splits["val"].labels)
-        test_dataset = TextDataset(test_encodings, splits["test"].labels)
+        test_dataset = None
+        if run_mode == "full" and test_encodings is not None:
+            test_dataset = TextDataset(test_encodings, splits["test"].labels)
 
         train_loader = DataLoader(
             train_dataset,
@@ -444,13 +509,15 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
             num_workers=num_workers,
             pin_memory=pin_memory,
         )
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=eval_batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-        )
+        test_loader = None
+        if run_mode == "full" and test_dataset is not None:
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=eval_batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+            )
 
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
@@ -465,7 +532,8 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
 
         run_dir = output_root / run_id
         checkpoint_dir = run_dir / "best_checkpoint"
-        run_dir.mkdir(parents=True, exist_ok=True)
+        if save_artifacts:
+            run_dir.mkdir(parents=True, exist_ok=True)
 
         scaler = torch.cuda.amp.GradScaler(enabled=fp16)
 
@@ -542,9 +610,10 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
                 best_val_metrics = dict(val_metrics)
                 best_epoch = epoch
                 no_improve_epochs = 0
-                checkpoint_dir.mkdir(parents=True, exist_ok=True)
-                model.save_pretrained(checkpoint_dir)
-                tokenizer.save_pretrained(checkpoint_dir)
+                if save_artifacts:
+                    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                    model.save_pretrained(checkpoint_dir)
+                    tokenizer.save_pretrained(checkpoint_dir)
             else:
                 no_improve_epochs += 1
 
@@ -566,6 +635,31 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
 
         if best_val_metrics is None:
             raise DlTrainError("Training completed but no best checkpoint was selected.")
+
+        elapsed_seconds = round(time.perf_counter() - training_start, 3)
+        if run_mode == "explore":
+            if track_runs:
+                run_record.update(
+                    {
+                        "val_f1_macro": round(best_val_metrics["f1_macro"], 6),
+                        "val_precision_macro": round(best_val_metrics["precision_macro"], 6),
+                        "val_recall_macro": round(best_val_metrics["recall_macro"], 6),
+                        "val_accuracy": round(best_val_metrics["accuracy"], 6),
+                        "val_f1_fake": round(best_val_metrics["f1_fake"], 6),
+                        "status": "PASS",
+                    }
+                )
+            return ExploreArtifacts(
+                run_id=run_id,
+                best_epoch=int(best_epoch),
+                elapsed_seconds=float(elapsed_seconds),
+                val_metrics=best_val_metrics,
+            )
+
+        if not save_artifacts:
+            raise DlTrainError("save_artifacts must be True for full mode training.")
+        if not checkpoint_dir.exists():
+            raise DlTrainError("Missing best checkpoint directory after full training.")
 
         best_model = AutoModelForSequenceClassification.from_pretrained(checkpoint_dir)
         best_model.to(device)
@@ -590,6 +684,8 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
             sample_ids=splits["val"].sample_ids,
             split_name="val",
         )
+        if test_loader is None:
+            raise DlTrainError("Missing test dataloader for full training.")
         test_metrics, test_pred_rows = evaluate_model(
             model=best_model,
             dataloader=test_loader,
@@ -597,8 +693,6 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
             sample_ids=splits["test"].sample_ids,
             split_name="test",
         )
-
-        elapsed_seconds = round(time.perf_counter() - training_start, 3)
 
         metrics_payload = {
             "run_id": run_id,
@@ -685,5 +779,6 @@ def train_phobert(config_path: str | Path | None = None, output_root_override: s
         run_record["notes"] = str(exc)
         raise
     finally:
-        print("[DL TRAIN] Writing run record to experiments/dl/runs.csv...")
-        append_run_record(runs_path, run_record)
+        if track_runs:
+            print("[DL TRAIN] Writing run record to experiments/dl/runs.csv...")
+            append_run_record(runs_path, run_record)
