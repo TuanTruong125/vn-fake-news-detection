@@ -4,8 +4,10 @@ import csv
 import json
 import math
 import random
+import sys
 import time
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -297,6 +299,90 @@ def tokenize_split(
     return payload
 
 
+# Assert labels are integer, 1D, non-NaN, and within [0,num_labels-1] with error details.
+def assert_label_bounds(
+    labels: np.ndarray,
+    num_labels: int,
+    split_name: str,
+    sample_ids: list[str],
+) -> None:
+    if labels.size == 0:
+        raise DlTrainError(f"{split_name}: labels array is empty.")
+    if not np.issubdtype(labels.dtype, np.integer):
+        raise DlTrainError(
+            f"{split_name}: labels must be integer type, got {labels.dtype}."
+        )
+    if labels.ndim != 1:
+        raise DlTrainError(
+            f"{split_name}: labels must be 1D array, got shape {labels.shape}."
+        )
+    if np.any(np.isnan(labels.astype(float))):
+        raise DlTrainError(f"{split_name}: labels contain NaN values.")
+    invalid_mask = (labels < 0) | (labels >= num_labels)
+    if invalid_mask.any():
+        bad_idx = np.where(invalid_mask)[0][:5]
+        bad_count = np.sum(invalid_mask)
+        examples = [
+            {"sample_id": sample_ids[i] if i < len(sample_ids) else f"idx_{i}", "label": int(labels[i])}
+            for i in bad_idx
+        ]
+        raise DlTrainError(
+            f"{split_name}: {bad_count}/{len(labels)} labels out of range [0,{num_labels - 1}] examples={examples}"
+        )
+
+
+# Assert encodings contain input_ids, match labels length, and optionally check vocab bounds with error details.
+def assert_encoding_lengths(
+    encodings: dict[str, torch.Tensor],
+    labels: np.ndarray,
+    split_name: str,
+) -> None:
+    input_ids = encodings.get("input_ids")
+    if input_ids is None:
+        raise DlTrainError(f"{split_name}: missing input_ids in encodings.")
+    if int(input_ids.shape[0]) != int(labels.shape[0]):
+        raise DlTrainError(
+            f"{split_name}: encoded rows ({int(input_ids.shape[0])}) "
+            f"!= labels ({int(labels.shape[0])})."
+        )
+
+
+# Assert input_ids are within vocab range [0, vocab_size-1] with error details on out-of-bounds examples.
+def assert_encoding_bounds(
+    encodings: dict[str, torch.Tensor],
+    vocab_size: int,
+    split_name: str,
+) -> None:
+    if vocab_size <= 0:
+        return
+    input_ids = encodings.get("input_ids")
+    if input_ids is None:
+        raise DlTrainError(f"{split_name}: missing input_ids in encodings.")
+
+    min_id = int(input_ids.min().item())
+    max_id = int(input_ids.max().item())
+    if min_id < 0 or max_id >= vocab_size:
+        bad_mask = (input_ids < 0) | (input_ids >= vocab_size)
+        bad_rows = (
+            torch.nonzero(bad_mask.any(dim=1), as_tuple=False)
+            .flatten()
+            .tolist()[:5]
+        )
+        raise DlTrainError(
+            f"{split_name}: input_ids out of vocab range [0,{vocab_size - 1}] "
+            f"(min={min_id}, max={max_id}, bad_rows={bad_rows})"
+        )
+
+
+# Context manager for mixed precision autocasting if enabled and supported by PyTorch version.
+def autocast_context(fp16: bool) -> Any:
+    if not fp16:
+        return nullcontext()
+    if hasattr(torch, "amp"):
+        return torch.amp.autocast("cuda", enabled=True)
+    return torch.cuda.amp.autocast(enabled=True)
+
+
 # Compute binary metrics aligned with ML naming conventions.
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
     precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
@@ -465,6 +551,13 @@ def train_phobert(
         model = AutoModelForSequenceClassification.from_pretrained(pretrained_name, num_labels=num_labels)
         model.to(device)
 
+        model_max_positions = int(getattr(model.config, "max_position_embeddings", 0) or 0)
+        if model_max_positions and max_length > model_max_positions:
+            raise DlTrainError(
+                f"max_length={max_length} exceeds model max_position_embeddings={model_max_positions}. "
+                "Update train_dl.yaml search_space/max_length to supported values."
+            )
+
         train_encodings = tokenize_split(
             tokenizer,
             splits["train"].texts,
@@ -488,6 +581,20 @@ def train_phobert(
                 encoded_cache=encoded_cache,
                 split_name="test",
             )
+
+        vocab_size = int(model.get_input_embeddings().num_embeddings)
+        assert_label_bounds(splits["train"].labels, num_labels, "train", splits["train"].sample_ids)
+        assert_encoding_lengths(train_encodings, splits["train"].labels, "train")
+        assert_encoding_bounds(train_encodings, vocab_size, "train")
+
+        assert_label_bounds(splits["val"].labels, num_labels, "val", splits["val"].sample_ids)
+        assert_encoding_lengths(val_encodings, splits["val"].labels, "val")
+        assert_encoding_bounds(val_encodings, vocab_size, "val")
+
+        if run_mode == "full" and test_encodings is not None:
+            assert_label_bounds(splits["test"].labels, num_labels, "test", splits["test"].sample_ids)
+            assert_encoding_lengths(test_encodings, splits["test"].labels, "test")
+            assert_encoding_bounds(test_encodings, vocab_size, "test")
 
         train_dataset = TextDataset(train_encodings, splits["train"].labels)
         val_dataset = TextDataset(val_encodings, splits["val"].labels)
@@ -535,7 +642,10 @@ def train_phobert(
         if save_artifacts:
             run_dir.mkdir(parents=True, exist_ok=True)
 
-        scaler = torch.cuda.amp.GradScaler(enabled=fp16)
+        if hasattr(torch, "amp"):
+            scaler = torch.amp.GradScaler("cuda", enabled=fp16)
+        else:
+            scaler = torch.cuda.amp.GradScaler(enabled=fp16)
 
         best_val_metrics: dict[str, float] | None = None
         best_epoch = 0
@@ -556,7 +666,7 @@ def train_phobert(
                 attention_mask = batch["attention_mask"].to(device)
                 labels = batch["labels"].to(device)
 
-                with torch.cuda.amp.autocast(enabled=fp16):
+                with autocast_context(fp16):
                     outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
                     loss = outputs.loss / max(1, grad_acc_steps)
 
@@ -777,6 +887,19 @@ def train_phobert(
     except Exception as exc:
         run_record["status"] = "FAIL"
         run_record["notes"] = str(exc)
+        exc_str = str(exc).lower()
+        is_cuda_error = "cuda error" in exc_str or "device-side assert" in exc_str
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            if is_cuda_error:
+                print(
+                    "[DL TRAIN] CUDA failure detected - forcing hard exit to reset CUDA context.",
+                    flush=True,
+                )
+                sys.exit(1)
         raise
     finally:
         if track_runs:
