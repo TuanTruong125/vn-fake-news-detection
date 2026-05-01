@@ -1,0 +1,52 @@
+version: 1
+
+data:
+  train_path: data/processed/train.csv
+  val_path: data/processed/val.csv
+  test_path: data/processed/test.csv
+  text_column: text_clean
+  label_column: label_binary
+  id_column: sample_id
+
+experiment:
+  name: phobert
+  random_state: 42
+  primary_metric: f1_macro
+  tie_breaker: f1_fake
+
+selection:
+  choose_best_by: f1_macro
+  tie_breaker: f1_fake
+
+model:
+  pretrained_name: vinai/phobert-base
+  num_labels: 2
+  max_length: 256
+
+training:
+  num_epochs: 3
+  train_batch_size: 8
+  eval_batch_size: 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  early_stopping_patience: 2
+
+runtime:
+  device: auto
+  fp16: false
+  num_workers: 0
+  pin_memory: false
+  output_root: models/dl
+  save_best_only: true
+
+comparison:
+  ml_best_config_path: experiments/ml/best_config.json
+  report_path: reports/model_report_dl.md
+
+search_space:
+  learning_rate: [1.0e-5, 2.0e-5, 3.0e-5]
+  max_length: [128, 256]
+  train_batch_size: [8, 16]

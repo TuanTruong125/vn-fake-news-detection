@@ -136,6 +136,43 @@ def append_run_record(runs_path: Path, run_record: dict[str, Any]) -> None:
         writer.writerow({column: run_record.get(column, "") for column in RUNS_COLUMNS})
 
 
+# Build a default run record structure with empty metric fields.
+def init_run_record(
+    run_id: str,
+    run_timestamp: str,
+    experiment_name: str,
+    config_version: int,
+    random_state: int | str,
+    model_name: str,
+    feature_set: str,
+    text_variant: str,
+    params_json: str,
+) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "run_timestamp": run_timestamp,
+        "experiment_name": experiment_name,
+        "config_version": config_version,
+        "random_state": random_state,
+        "model_name": model_name,
+        "feature_set": feature_set,
+        "text_variant": text_variant,
+        "params_json": params_json,
+        "val_f1_macro": "",
+        "val_precision_macro": "",
+        "val_recall_macro": "",
+        "val_accuracy": "",
+        "val_f1_fake": "",
+        "test_f1_macro": "",
+        "test_precision_macro": "",
+        "test_recall_macro": "",
+        "test_accuracy": "",
+        "test_f1_fake": "",
+        "status": "FAIL",
+        "notes": "",
+    }
+
+
 # Parse JSON params override string into dictionary format.
 def parse_params_json(params_json: str | None) -> dict[str, Any] | None:
     if params_json is None:
@@ -309,43 +346,6 @@ def save_artifacts(
         artifact_paths["best_metadata_path"] = str(best_metadata_path.as_posix())
 
     return artifact_paths
-
-
-# Build a default run record structure with empty metric fields.
-def init_run_record(
-    run_id: str,
-    run_timestamp: str,
-    experiment_name: str,
-    config_version: int,
-    random_state: int | str,
-    model_name: str,
-    feature_set: str,
-    text_variant: str,
-    params_json: str,
-) -> dict[str, Any]:
-    return {
-        "run_id": run_id,
-        "run_timestamp": run_timestamp,
-        "experiment_name": experiment_name,
-        "config_version": config_version,
-        "random_state": random_state,
-        "model_name": model_name,
-        "feature_set": feature_set,
-        "text_variant": text_variant,
-        "params_json": params_json,
-        "val_f1_macro": "",
-        "val_precision_macro": "",
-        "val_recall_macro": "",
-        "val_accuracy": "",
-        "val_f1_fake": "",
-        "test_f1_macro": "",
-        "test_precision_macro": "",
-        "test_recall_macro": "",
-        "test_accuracy": "",
-        "test_f1_fake": "",
-        "status": "FAIL",
-        "notes": "",
-    }
 
 
 # Run one end-to-end ML training execution and persist artifacts plus run tracking.
