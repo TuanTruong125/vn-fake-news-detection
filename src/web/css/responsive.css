@@ -1,0 +1,49 @@
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .panel-history {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-shell {
+    width: min(1200px, 95vw);
+    padding-top: 16px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar-links {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .hero {
+    padding: 24px 18px;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 375px) {
+  .brand-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .brand-text {
+    font-size: 0.95rem;
+  }
+
+  .panel {
+    padding: 16px 14px;
+  }
+}

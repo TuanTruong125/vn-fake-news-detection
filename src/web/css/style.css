@@ -1,0 +1,162 @@
+:root {
+  --bg-page: #f4f7f8;
+  --bg-surface: #ffffff;
+  --bg-accent: #123f52;
+  --text-primary: #0f1f26;
+  --text-secondary: #4b606b;
+  --text-inverse: #f3f8fa;
+  --border-soft: #d5e1e6;
+  --ok: #117a52;
+  --warn: #c56a1f;
+  --danger: #b23a34;
+
+  --font-ui: "Nunito Sans", "Segoe UI Variable", "Trebuchet MS", sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius: 14px;
+  --shadow-soft: 0 8px 24px rgba(11, 36, 48, 0.08);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  background:
+    radial-gradient(1000px 500px at 100% -20%, #d8ecef 0%, transparent 70%),
+    radial-gradient(900px 420px at -10% 120%, #e8f1df 0%, transparent 70%),
+    var(--bg-page);
+  line-height: 1.45;
+}
+
+a {
+  color: inherit;
+}
+
+.page-shell {
+  min-height: 100vh;
+  width: min(1200px, 94vw);
+  margin: 0 auto;
+  padding: var(--space-5) 0 var(--space-6);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-3) var(--space-4);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.brand-text {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.topbar-links {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.topbar-links a {
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.hero {
+  margin-top: var(--space-5);
+  background: linear-gradient(130deg, #113b4c 0%, #285870 52%, #2f7382 100%);
+  color: var(--text-inverse);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-6);
+}
+
+.hero-kicker {
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  font-size: 0.8rem;
+  opacity: 0.86;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.3vw, 2.2rem);
+}
+
+.hero-subtitle {
+  margin: var(--space-3) 0 0;
+  max-width: 70ch;
+  color: #dcecf2;
+}
+
+.main-grid {
+  margin-top: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1.2fr 1fr 0.9fr;
+}
+
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-5);
+  min-height: 200px;
+}
+
+.panel h2 {
+  margin-top: 0;
+  margin-bottom: var(--space-2);
+  font-size: 1.1rem;
+}
+
+.panel-note {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.page-footer {
+  margin-top: var(--space-5);
+  text-align: center;
+  color: var(--text-secondary);
+}
