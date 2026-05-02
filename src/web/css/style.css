@@ -729,6 +729,157 @@ p {
   color: #6d5437;
 }
 
+/* Explanation Panel */
+.explain-panel {
+  margin-top: var(--space-4);
+  border: 1px solid rgba(212, 165, 116, 0.26);
+  border-radius: 12px;
+  background: rgba(255, 250, 244, 0.92);
+  padding: var(--space-4);
+}
+
+.explain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.explain-head h3 {
+  font-size: 0.96rem;
+  color: #5c4023;
+}
+
+.explain-status {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.explain-status.available {
+  color: #0f6f48;
+}
+
+.explain-status.unavailable {
+  color: #7b6548;
+}
+
+.explain-empty {
+  font-size: 0.84rem;
+  color: #7b6548;
+  background: #fff8ed;
+  border: 1px dashed #dfc7aa;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.explain-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.explain-col h4,
+.explain-decomposition h4 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+}
+
+.explain-col.fake h4 {
+  color: #8d2b26;
+}
+
+.explain-col.real h4 {
+  color: #0d6b45;
+}
+
+.explain-list {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 260px;
+  overflow: auto;
+}
+
+.explain-item {
+  border: 1px solid #ead8c3;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.explain-item.fake {
+  border-left: 3px solid #d27267;
+}
+
+.explain-item.real {
+  border-left: 3px solid #5fb58e;
+}
+
+.explain-item-feature {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #3e2a17;
+  word-break: break-word;
+}
+
+.explain-item-meta {
+  margin-top: 3px;
+  font-size: 0.74rem;
+  color: #6e583c;
+  font-family: var(--font-mono);
+  word-break: break-word;
+}
+
+.explain-list-empty {
+  font-size: 0.8rem;
+  color: #806b4e;
+  background: #fff9f0;
+  border: 1px dashed #dfc7aa;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.explain-decomposition {
+  margin-top: var(--space-3);
+}
+
+.explain-decomposition-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.explain-decomp-item {
+  border: 1px solid #ead8c3;
+  border-radius: 9px;
+  padding: 7px 9px;
+  background: #fff;
+}
+
+.explain-decomp-key {
+  display: block;
+  font-size: 0.72rem;
+  color: #7a6244;
+}
+
+.explain-decomp-value {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.81rem;
+  color: #322012;
+  font-family: var(--font-mono);
+  word-break: break-word;
+}
+
+.explain-decomposition-note {
+  margin: var(--space-2) 0 0;
+  font-size: 0.75rem;
+  color: #7c6447;
+}
+
 /* Result JSON Display */
 .result-json {
   margin-top: var(--space-4);

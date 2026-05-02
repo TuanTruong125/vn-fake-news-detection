@@ -168,6 +168,14 @@
     flex-wrap: wrap;
   }
 
+  .explain-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .explain-decomposition-grid {
+    grid-template-columns: 1fr;
+  }
+
   .page-footer {
     font-size: 0.75rem;
     margin-top: var(--space-4);
@@ -284,5 +292,14 @@
 
   .copy-json-btn {
     width: 100%;
+  }
+
+  .explain-panel {
+    padding: var(--space-3);
+  }
+
+  .explain-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
