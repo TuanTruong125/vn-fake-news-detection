@@ -101,6 +101,15 @@ export function initUI() {
     buttonLabel: document.querySelector("#predict-button .btn-label"),
     resultNote: document.getElementById("result-note"),
     resultJson: document.getElementById("result-json"),
+    resultSummary: document.getElementById("result-summary"),
+    resultBadge: document.getElementById("result-badge"),
+    resultConfidence: document.getElementById("result-confidence"),
+    resultMetricGrid: document.getElementById("result-metric-grid"),
+    resultModelGrid: document.getElementById("result-model-grid"),
+    resultWarnings: document.getElementById("result-warnings"),
+    resultErrorBox: document.getElementById("result-error-box"),
+    copyJsonButton: document.getElementById("copy-json-btn"),
+    copyJsonState: document.getElementById("copy-json-state"),
     fieldErrors: {
       text: document.getElementById("text-error"),
       model_family: document.getElementById("model-family-error"),
@@ -113,6 +122,8 @@ export function initUI() {
   const state = {
     allRuns: [],
     isLoading: false,
+    latestResultJson: "",
+    copyStateTimer: null,
   };
 
 
@@ -194,6 +205,125 @@ export function initUI() {
     }
     if (elements.buttonLabel) {
       elements.buttonLabel.textContent = isLoading ? "Predicting..." : "Predict";
+    }
+  }
+
+
+  // Format confidence value to percentage string.
+  function formatPercent(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return "-";
+    }
+    return `${(number * 100).toFixed(2)}%`;
+  }
+
+
+  // Format milliseconds for readable display.
+  function formatMs(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return "-";
+    }
+    return `${number.toFixed(2)} ms`;
+  }
+
+
+  // Resolve result label text and CSS class from response.
+  function resolveLabel(result) {
+    const labelId = Number(result?.label_id);
+    const labelText = String(result?.label_text ?? "").trim().toLowerCase();
+    if (labelId === 1 || labelText === "fake") {
+      return { text: "FAKE", className: "result-badge fake" };
+    }
+    if (labelId === 0 || labelText === "real") {
+      return { text: "REAL", className: "result-badge real" };
+    }
+    return { text: String(result?.label_text ?? "UNKNOWN").toUpperCase(), className: "result-badge unknown" };
+  }
+
+
+  // Safely render key-value rows to a target container.
+  function renderKeyValueGrid(target, rows) {
+    if (!target) {
+      return;
+    }
+    target.innerHTML = "";
+    for (const row of rows) {
+      const item = document.createElement("div");
+      item.className = "result-kv-item";
+      const key = document.createElement("span");
+      key.className = "result-kv-key";
+      key.textContent = row.key;
+      const value = document.createElement("strong");
+      value.className = "result-kv-value";
+      value.textContent = row.value;
+      item.appendChild(key);
+      item.appendChild(value);
+      target.appendChild(item);
+    }
+  }
+
+
+  // Update copy button feedback state.
+  function setCopyState(message) {
+    if (!elements.copyJsonState) {
+      return;
+    }
+    elements.copyJsonState.textContent = message;
+    if (state.copyStateTimer) {
+      clearTimeout(state.copyStateTimer);
+      state.copyStateTimer = null;
+    }
+    if (!message) {
+      return;
+    }
+    state.copyStateTimer = setTimeout(() => {
+      if (elements.copyJsonState) {
+        elements.copyJsonState.textContent = "";
+      }
+      state.copyStateTimer = null;
+    }, 1600);
+  }
+
+
+  // Set result JSON panel and copy button state.
+  function setResultJsonPayload(payload) {
+    const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+    state.latestResultJson = text;
+    if (elements.resultJson) {
+      elements.resultJson.hidden = false;
+      elements.resultJson.textContent = text;
+    }
+    if (elements.copyJsonButton) {
+      elements.copyJsonButton.disabled = !text;
+    }
+  }
+
+
+  // Copy latest JSON payload to clipboard.
+  async function handleCopyJson() {
+    const content = state.latestResultJson || "";
+    if (!content) {
+      setCopyState("No JSON to copy.");
+      return;
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const fallback = document.createElement("textarea");
+        fallback.value = content;
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        fallback.select();
+        document.execCommand("copy");
+        fallback.remove();
+      }
+      setCopyState("Copied.");
+    } catch {
+      setCopyState("Copy failed.");
     }
   }
 
@@ -308,18 +438,93 @@ export function initUI() {
     if (elements.resultNote) {
       elements.resultNote.textContent = "Prediction completed successfully.";
     }
-    if (elements.resultJson) {
-      elements.resultJson.hidden = false;
-      elements.resultJson.textContent = JSON.stringify(result, null, 2);
+    if (elements.resultErrorBox) {
+      elements.resultErrorBox.hidden = true;
+      elements.resultErrorBox.textContent = "";
     }
+
+    if (elements.resultSummary) {
+      elements.resultSummary.hidden = false;
+    }
+
+    const label = resolveLabel(result);
+    if (elements.resultBadge) {
+      elements.resultBadge.className = label.className;
+      elements.resultBadge.textContent = label.text;
+    }
+    if (elements.resultConfidence) {
+      elements.resultConfidence.textContent = `Confidence: ${formatPercent(result?.confidence)}`;
+    }
+
+    renderKeyValueGrid(elements.resultMetricGrid, [
+      { key: "Threshold", value: String(result?.threshold_used ?? "-") },
+      { key: "Raw Score", value: String(result?.raw_score ?? "-") },
+      { key: "Processing Time", value: formatMs(result?.processing_time_ms) },
+      { key: "Score Method", value: String(result?.score_method ?? "-") },
+    ]);
+
+    renderKeyValueGrid(elements.resultModelGrid, [
+      { key: "Model Type (Model Family)", value: String(result?.model_family ?? "-").toUpperCase() },
+      { key: "Model Selected (Run ID)", value: String(result?.run_id ?? "-") },
+      { key: "Model Name", value: String(result?.model_name ?? "-") },
+      { key: "Feature Set", value: String(result?.feature_set ?? "-") },
+    ]);
+
+    if (elements.resultWarnings) {
+      const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
+      elements.resultWarnings.innerHTML = "";
+      if (!warnings.length) {
+        elements.resultWarnings.hidden = true;
+      } else {
+        elements.resultWarnings.hidden = false;
+        for (const warning of warnings) {
+          const item = document.createElement("li");
+          item.textContent = String(warning);
+          elements.resultWarnings.appendChild(item);
+        }
+      }
+    }
+
+    setResultJsonPayload(result);
+    setCopyState("");
   }
 
 
   // Render an error message in the UI, showing the provided message in the result note area.
   function renderError(message) {
+    const asObject = typeof message === "object" && message !== null ? message : null;
+    const errorCode = asObject?.errorCode ? String(asObject.errorCode) : "";
+    const detail = asObject?.message ? String(asObject.message) : String(message ?? "Unknown error.");
+    const combinedMessage = errorCode ? `[${errorCode}] ${detail}` : detail;
+
     if (elements.resultNote) {
-      elements.resultNote.textContent = message;
+      elements.resultNote.textContent = "Prediction failed.";
     }
+    if (elements.resultSummary) {
+      elements.resultSummary.hidden = true;
+    }
+    if (elements.resultErrorBox) {
+      elements.resultErrorBox.hidden = false;
+      elements.resultErrorBox.textContent = combinedMessage;
+    }
+    setResultJsonPayload(
+      asObject
+        ? {
+            type: asObject.type ?? "api_error",
+            status: asObject.status ?? null,
+            error_code: asObject.errorCode ?? null,
+            detail: asObject.message ?? detail,
+            raw: asObject.raw ?? null,
+          }
+        : { detail: combinedMessage },
+    );
+    setCopyState("");
+  }
+
+  if (elements.copyJsonButton) {
+    elements.copyJsonButton.addEventListener("click", () => {
+      handleCopyJson();
+    });
   }
 
   return {

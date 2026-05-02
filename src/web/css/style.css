@@ -610,6 +610,125 @@ p {
   font-size: 0.95rem;
 }
 
+.result-summary {
+  margin-top: var(--space-4);
+}
+
+.result-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.result-badge.fake {
+  background: #ffe8e6;
+  color: #9d2b26;
+  border: 1px solid #f3b8b3;
+}
+
+.result-badge.real {
+  background: #e7f8ef;
+  color: #0f6f48;
+  border: 1px solid #b7e6cf;
+}
+
+.result-badge.unknown {
+  background: #eef2f6;
+  color: #44545f;
+  border: 1px solid #d2dde4;
+}
+
+.result-metric-grid,
+.result-model-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.result-kv-item {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(212, 165, 116, 0.2);
+  border-radius: 10px;
+  padding: 9px 10px;
+  min-width: 0;
+}
+
+.result-kv-key {
+  display: block;
+  font-size: 0.75rem;
+  color: #7d6547;
+  margin-bottom: 2px;
+}
+
+.result-kv-value {
+  display: block;
+  font-size: 0.86rem;
+  color: #2b1f13;
+  word-break: break-word;
+}
+
+.result-warnings {
+  margin: 0 0 var(--space-3);
+  padding-left: 20px;
+  color: #875213;
+  font-size: 0.83rem;
+}
+
+.result-error-box {
+  margin-top: var(--space-4);
+  border: 1px solid #efc8c6;
+  background: #fff3f2;
+  color: #8f231f;
+  border-radius: 10px;
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow: auto;
+  word-break: break-word;
+  font-size: 0.88rem;
+}
+
+.result-json-toolbar {
+  margin-top: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.copy-json-btn {
+  border: 1px solid rgba(212, 165, 116, 0.45);
+  background: #fff7ec;
+  color: #664726;
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.copy-json-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.copy-json-state {
+  font-size: 0.8rem;
+  color: #6d5437;
+}
+
 /* Result JSON Display */
 .result-json {
   margin-top: var(--space-4);

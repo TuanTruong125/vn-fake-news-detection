@@ -66,7 +66,7 @@ function bootstrap() {
     } catch (error) {
       const message = formatClientError(error);
       ui.setFormError(message);
-      ui.renderError(message);
+      ui.renderError(error);
     } finally {
       ui.setLoading(false);
     }
