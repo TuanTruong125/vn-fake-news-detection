@@ -98,3 +98,15 @@ class HealthResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error_code: str
     detail: str
+
+
+# Run option schema for listing available runs in the UI.
+class RunOption(BaseModel):
+    run_id: str
+    model_family: Literal["ml", "dl"]
+    is_best: bool
+
+
+# Response schema for listing available runs.
+class RunsResponse(BaseModel):
+    runs: list[RunOption]
