@@ -110,6 +110,7 @@ export function initUI() {
     resultErrorBox: document.getElementById("result-error-box"),
     copyJsonButton: document.getElementById("copy-json-btn"),
     copyJsonState: document.getElementById("copy-json-state"),
+    resultTab: document.getElementById("result-tab"),
     fieldErrors: {
       text: document.getElementById("text-error"),
       model_family: document.getElementById("model-family-error"),
@@ -125,6 +126,64 @@ export function initUI() {
     latestResultJson: "",
     copyStateTimer: null,
   };
+
+
+  // Ensure explanation panel exists in Result tab.
+  function ensureExplanationPanel() {
+    if (!elements.resultTab) {
+      return null;
+    }
+
+    let panel = document.getElementById("explain-panel");
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.id = "explain-panel";
+      panel.className = "explain-panel";
+      panel.hidden = true;
+      panel.innerHTML = `
+        <div class="explain-head">
+          <h3>Explanation</h3>
+          <p id="explain-status" class="explain-status"></p>
+        </div>
+        <div id="explain-empty" class="explain-empty" hidden></div>
+        <div id="explain-content" hidden>
+          <div class="explain-columns">
+            <div class="explain-col fake">
+              <h4>Towards FAKE</h4>
+              <div id="explain-fake-list" class="explain-list"></div>
+            </div>
+            <div class="explain-col real">
+              <h4>Towards REAL</h4>
+              <div id="explain-real-list" class="explain-list"></div>
+            </div>
+          </div>
+          <div class="explain-decomposition">
+            <h4>Decomposition</h4>
+            <div id="explain-decomposition-grid" class="explain-decomposition-grid"></div>
+            <p id="explain-decomposition-note" class="explain-decomposition-note"></p>
+          </div>
+        </div>
+      `;
+      const anchor = elements.resultErrorBox ?? elements.resultJson;
+      if (anchor?.parentNode === elements.resultTab) {
+        elements.resultTab.insertBefore(panel, anchor);
+      } else {
+        elements.resultTab.appendChild(panel);
+      }
+    }
+    return {
+      panel,
+      status: document.getElementById("explain-status"),
+      empty: document.getElementById("explain-empty"),
+      content: document.getElementById("explain-content"),
+      fakeList: document.getElementById("explain-fake-list"),
+      realList: document.getElementById("explain-real-list"),
+      decompositionGrid: document.getElementById("explain-decomposition-grid"),
+      decompositionNote: document.getElementById("explain-decomposition-note"),
+    };
+  }
+
+  const explanation = ensureExplanationPanel();
 
 
   // Set the status message for the main application container.
@@ -242,6 +301,26 @@ export function initUI() {
     return { text: String(result?.label_text ?? "UNKNOWN").toUpperCase(), className: "result-badge unknown" };
   }
 
+  
+  // Format signed numeric values for explanation rows.
+  function formatSignedNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return "-";
+    }
+    return `${number >= 0 ? "+" : ""}${number}`;
+  }
+
+
+  // Format nullable numeric values for decomposition fields.
+  function formatNullableNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return "-";
+    }
+    return number;
+  }
+
 
   // Safely render key-value rows to a target container.
   function renderKeyValueGrid(target, rows) {
@@ -284,6 +363,153 @@ export function initUI() {
       }
       state.copyStateTimer = null;
     }, 1600);
+  }
+
+
+  // Render explanation feature list for one direction.
+  function renderExplainFeatureList(target, features, directionClass) {
+    if (!target) {
+      return;
+    }
+    target.innerHTML = "";
+    if (!Array.isArray(features) || !features.length) {
+      const empty = document.createElement("div");
+      empty.className = "explain-list-empty";
+      empty.textContent = "No feature contributions returned.";
+      target.appendChild(empty);
+      return;
+    }
+
+    for (const feature of features) {
+      const row = document.createElement("div");
+      row.className = `explain-item ${directionClass}`;
+      const featureName = document.createElement("div");
+      featureName.className = "explain-item-feature";
+      featureName.textContent = String(feature?.feature ?? "-");
+      const featureMeta = document.createElement("div");
+      featureMeta.className = "explain-item-meta";
+      featureMeta.textContent = `contribution ${formatSignedNumber(feature?.contribution)} | weight ${formatSignedNumber(feature?.weight)} | value ${formatNullableNumber(feature?.value)}`;
+      row.appendChild(featureName);
+      row.appendChild(featureMeta);
+      target.appendChild(row);
+    }
+  }
+
+
+  // Render explanation decomposition block.
+  function renderExplainDecomposition(data) {
+    if (!explanation?.decompositionGrid || !explanation?.decompositionNote) {
+      return;
+    }
+    explanation.decompositionGrid.innerHTML = "";
+    explanation.decompositionNote.textContent = "";
+
+    if (!data || typeof data !== "object") {
+      const empty = document.createElement("div");
+      empty.className = "explain-list-empty";
+      empty.textContent = "Decomposition is not available.";
+      explanation.decompositionGrid.appendChild(empty);
+      return;
+    }
+
+    const rows = [
+      { key: "Sum Positive", value: formatNullableNumber(data.sum_positive_contrib) },
+      { key: "Sum Negative", value: formatNullableNumber(data.sum_negative_contrib) },
+      { key: "Sum Total", value: formatNullableNumber(data.sum_total_contrib) },
+      { key: "Intercept", value: formatNullableNumber(data.intercept) },
+      { key: "Estimated Score", value: formatNullableNumber(data.estimated_decision_score) },
+      { key: "Raw Decision", value: formatNullableNumber(data.raw_decision_score) },
+      { key: "Decision Gap", value: formatNullableNumber(data.decision_score_gap) },
+    ];
+
+    for (const row of rows) {
+      const item = document.createElement("div");
+      item.className = "explain-decomp-item";
+      const key = document.createElement("span");
+      key.className = "explain-decomp-key";
+      key.textContent = row.key;
+      const value = document.createElement("strong");
+      value.className = "explain-decomp-value";
+      value.textContent = row.value;
+      item.appendChild(key);
+      item.appendChild(value);
+      explanation.decompositionGrid.appendChild(item);
+    }
+
+    if (typeof data.approximate_score_alignment_note === "string" && data.approximate_score_alignment_note.trim()) {
+      explanation.decompositionNote.textContent = data.approximate_score_alignment_note;
+    }
+  }
+
+
+  // Render explanation panel based on inference response.
+  function renderExplanation(result) {
+    if (!explanation?.panel) {
+      return;
+    }
+    explanation.panel.hidden = false;
+
+    const available = Boolean(result?.explanation_available);
+    const reason = String(result?.explanation_reason ?? "").trim();
+
+    if (explanation.status) {
+      explanation.status.className = available ? "explain-status available" : "explain-status unavailable";
+      explanation.status.textContent = available ? "Explanation available." : "Explanation unavailable.";
+    }
+
+    if (!available) {
+      if (explanation.empty) {
+        explanation.empty.hidden = false;
+        explanation.empty.textContent = reason || "This model/run does not provide explanation for the current request.";
+      }
+      if (explanation.content) {
+        explanation.content.hidden = true;
+      }
+      return;
+    }
+
+    if (explanation.empty) {
+      explanation.empty.hidden = true;
+      explanation.empty.textContent = "";
+    }
+    if (explanation.content) {
+      explanation.content.hidden = false;
+    }
+    renderExplainFeatureList(explanation.fakeList, result?.top_features_towards_fake, "fake");
+    renderExplainFeatureList(explanation.realList, result?.top_features_towards_real, "real");
+    renderExplainDecomposition(result?.explanation_decomposition);
+  }
+
+  
+  // Reset explanation panel to neutral state.
+  function resetExplanation() {
+    if (!explanation?.panel) {
+      return;
+    }
+    explanation.panel.hidden = true;
+    if (explanation.status) {
+      explanation.status.textContent = "";
+      explanation.status.className = "explain-status";
+    }
+    if (explanation.empty) {
+      explanation.empty.hidden = true;
+      explanation.empty.textContent = "";
+    }
+    if (explanation.content) {
+      explanation.content.hidden = true;
+    }
+    if (explanation.fakeList) {
+      explanation.fakeList.innerHTML = "";
+    }
+    if (explanation.realList) {
+      explanation.realList.innerHTML = "";
+    }
+    if (explanation.decompositionGrid) {
+      explanation.decompositionGrid.innerHTML = "";
+    }
+    if (explanation.decompositionNote) {
+      explanation.decompositionNote.textContent = "";
+    }
   }
 
 
@@ -485,6 +711,7 @@ export function initUI() {
       }
     }
 
+    renderExplanation(result);
     setResultJsonPayload(result);
     setCopyState("");
   }
@@ -518,6 +745,7 @@ export function initUI() {
           }
         : { detail: combinedMessage },
     );
+    resetExplanation();
     setCopyState("");
   }
 
