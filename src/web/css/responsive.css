@@ -159,6 +159,15 @@
     gap: var(--space-2);
   }
 
+  .history-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .history-list {
+    max-height: 340px;
+  }
+
   .result-headline {
     flex-direction: column;
     align-items: flex-start;
@@ -292,6 +301,26 @@
 
   .copy-json-btn {
     width: 100%;
+  }
+
+  .history-item {
+    padding: var(--space-2);
+  }
+
+  .history-item-head,
+  .history-item-main,
+  .history-item-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .history-item-status {
+    align-self: flex-start;
+  }
+
+  .history-item-preview {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
   .explain-panel {

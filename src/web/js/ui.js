@@ -111,6 +111,8 @@ export function initUI() {
     copyJsonButton: document.getElementById("copy-json-btn"),
     copyJsonState: document.getElementById("copy-json-state"),
     resultTab: document.getElementById("result-tab"),
+    historyTab: document.getElementById("history-tab"),
+    historyList: document.getElementById("history-list"),
     fieldErrors: {
       text: document.getElementById("text-error"),
       model_family: document.getElementById("model-family-error"),
@@ -125,6 +127,7 @@ export function initUI() {
     isLoading: false,
     latestResultJson: "",
     copyStateTimer: null,
+    allHistoryItems: [],
   };
 
 
@@ -184,6 +187,40 @@ export function initUI() {
   }
 
   const explanation = ensureExplanationPanel();
+
+
+  // Ensure history controls exist in History tab.
+  function ensureHistoryWidgets() {
+    if (!elements.historyTab) {
+      return null;
+    }
+    let root = document.getElementById("history-widgets");
+    if (!root) {
+      root = document.createElement("div");
+      root.id = "history-widgets";
+      root.className = "history-widgets";
+      root.innerHTML = `
+        <div class="history-toolbar">
+          <strong>Prediction History</strong>
+          <button type="button" id="history-clear-btn" class="history-clear-btn">Clear</button>
+        </div>
+        <div id="history-empty" class="history-empty" hidden></div>
+      `;
+      const placeholder = elements.historyList?.parentNode;
+      if (placeholder && placeholder.parentNode === elements.historyTab) {
+        elements.historyTab.insertBefore(root, placeholder);
+      } else {
+        elements.historyTab.appendChild(root);
+      }
+    }
+    return {
+      root,
+      clearButton: document.getElementById("history-clear-btn"),
+      empty: document.getElementById("history-empty"),
+    };
+  }
+
+  const historyWidgets = ensureHistoryWidgets();
 
 
   // Set the status message for the main application container.
@@ -513,6 +550,158 @@ export function initUI() {
   }
 
 
+  // Switch UI to the Result tab.
+  function activateResultTab() {
+    const button = document.querySelector('.tab-button[data-tab="result-tab"]');
+    if (button) {
+      button.click();
+    }
+  }
+
+
+  // Render one compact history list item.
+  function createHistoryItemNode(item) {
+    const container = document.createElement("article");
+    container.className = `history-item ${item?.meta?.status === "error" ? "error" : "success"}`;
+    container.dataset.id = String(item?.id ?? "");
+    container.tabIndex = 0;
+    container.setAttribute("role", "button");
+
+    const statusText = item?.meta?.status === "error" ? "Error" : "Success";
+    const modelFamily = item?.request?.model_family ? String(item.request.model_family).toUpperCase() : "-";
+    const runId = item?.request?.run_id ? String(item.request.run_id) : "-";
+    const timestamp = item?.created_at ? new Date(item.created_at).toLocaleString() : "-";
+    const preview = String(item?.request?.text ?? "").replace(/\s+/g, " ").trim();
+    const previewText = preview.length > 110 ? `${preview.slice(0, 110)}...` : preview || "No text preview.";
+
+    const labelText = item?.meta?.status === "success" && item?.response?.label_text
+      ? String(item.response.label_text).toUpperCase()
+      : "-";
+    const confidence = item?.meta?.status === "success" && Number.isFinite(Number(item?.response?.confidence))
+      ? `${(Number(item.response.confidence) * 100).toFixed(2)}%`
+      : "-";
+
+    container.innerHTML = `
+      <div class="history-item-head">
+        <strong class="history-item-family"></strong>
+        <span class="history-item-time"></span>
+      </div>
+      <div class="history-item-main">
+        <span class="history-item-run"></span>
+        <span class="history-item-status ${item?.meta?.status === "error" ? "error" : "success"}"></span>
+      </div>
+      <div class="history-item-preview"></div>
+      <div class="history-item-foot">
+        <span class="history-item-summary"></span>
+      </div>
+    `;
+    const familyNode = container.querySelector(".history-item-family");
+    const timeNode = container.querySelector(".history-item-time");
+    const runNode = container.querySelector(".history-item-run");
+    const statusNode = container.querySelector(".history-item-status");
+    const previewNode = container.querySelector(".history-item-preview");
+    const summaryNode = container.querySelector(".history-item-summary");
+    if (familyNode) {
+      familyNode.textContent = modelFamily;
+    }
+    if (timeNode) {
+      timeNode.textContent = timestamp;
+    }
+    if (runNode) {
+      runNode.textContent = runId;
+    }
+    if (statusNode) {
+      statusNode.textContent = statusText;
+    }
+    if (previewNode) {
+      previewNode.textContent = previewText;
+    }
+    if (summaryNode) {
+      summaryNode.textContent = `${labelText} • ${confidence}`;
+    }
+    return container;
+  }
+
+
+  // Render full history list from state.
+  function renderHistoryList(items) {
+    state.allHistoryItems = Array.isArray(items) ? items : [];
+    if (!elements.historyList) {
+      return;
+    }
+    elements.historyList.innerHTML = "";
+
+    if (historyWidgets?.empty) {
+      historyWidgets.empty.hidden = state.allHistoryItems.length > 0;
+      historyWidgets.empty.textContent = state.allHistoryItems.length
+        ? ""
+        : "No history yet.";
+    }
+
+    if (!state.allHistoryItems.length) {
+      return;
+    }
+
+    for (const item of state.allHistoryItems) {
+      elements.historyList.appendChild(createHistoryItemNode(item));
+    }
+  }
+
+
+  // Refill form controls using one history request payload.
+  function hydrateFormFromRequest(request) {
+    if (!request || typeof request !== "object") {
+      return;
+    }
+    if (elements.text && typeof request.text === "string") {
+      elements.text.value = request.text;
+    }
+    if (elements.modelFamily && request.model_family) {
+      elements.modelFamily.value = String(request.model_family).toLowerCase();
+      refreshRunOptions();
+    }
+    if (elements.contentType && request.content_type) {
+      elements.contentType.value = String(request.content_type).toLowerCase();
+    }
+    if (elements.runId && request.run_id) {
+      elements.runId.value = String(request.run_id);
+    }
+    if (elements.topK) {
+      elements.topK.value = Number.isFinite(Number(request.top_k)) ? String(request.top_k) : "5";
+    }
+    if (elements.returnExplanation && typeof request.return_explanation === "boolean") {
+      elements.returnExplanation.checked = request.return_explanation;
+    }
+  }
+
+
+  // Apply one history item to form and result view.
+  function applyHistoryItem(item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    hydrateFormFromRequest(item.request ?? {});
+    if (item.meta?.status === "error") {
+      renderError(item.error ?? { message: "Failed request from history." });
+    } else {
+      renderResult(item.response ?? {});
+    }
+    activateResultTab();
+  }
+
+
+  // Pick a default run_id for one model family.
+  function getDefaultRunIdForFamily(modelFamily) {
+    const normalized = String(modelFamily ?? "").toLowerCase();
+    const familyRuns = state.allRuns.filter((item) => item.model_family === normalized);
+    if (!familyRuns.length) {
+      return null;
+    }
+    const best = familyRuns.find((item) => item.is_best);
+    return (best ?? familyRuns[0]).run_id;
+  }
+
+
   // Set result JSON panel and copy button state.
   function setResultJsonPayload(payload) {
     const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
@@ -577,7 +766,7 @@ export function initUI() {
       option.textContent = "No run available";
       elements.runId.appendChild(option);
       if (elements.runStatus) {
-        elements.runStatus.textContent = `No ${family.toUpperCase()} run available from backend.`;
+        elements.runStatus.textContent = `No ${family.toUpperCase()} run available.`;
       }
       return;
     }
@@ -769,5 +958,8 @@ export function initUI() {
     validatePayload,
     renderResult,
     renderError,
+    renderHistoryList,
+    applyHistoryItem,
+    getDefaultRunIdForFamily,
   };
 }
