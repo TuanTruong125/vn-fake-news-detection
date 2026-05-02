@@ -81,7 +81,9 @@ export function createApiClient(options = {}) {
         type: "api_error",
         status: response.status,
         errorCode: typeof payload === "object" && payload ? payload.error_code ?? null : null,
+        detail: typeof payload === "object" && payload ? payload.detail ?? null : null,
         message,
+        raw: payload,
       };
     }
     return payload;

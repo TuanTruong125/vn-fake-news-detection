@@ -153,6 +153,21 @@
     padding: var(--space-3);
   }
 
+  .result-metric-grid,
+  .result-model-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .result-headline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .result-json-toolbar {
+    flex-wrap: wrap;
+  }
+
   .page-footer {
     font-size: 0.75rem;
     margin-top: var(--space-4);
@@ -265,5 +280,9 @@
 
   .tab-content {
     padding: var(--space-3);
+  }
+
+  .copy-json-btn {
+    width: 100%;
   }
 }
