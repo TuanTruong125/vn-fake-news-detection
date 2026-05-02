@@ -7,7 +7,7 @@
   <meta name="description" content="Frontend foundation for VN Fake News Detector.">
   <link rel="stylesheet" href="./css/style.css">
   <link rel="stylesheet" href="./css/responsive.css">
-  <link rel="icon" href="./assets/logo.ico" sizes="32x32" type="image/x-icon">
+  <link rel="icon" href="./assets/logo.png" sizes="32x32" type="image/png">
 </head>
 <body>
   <div class="page-shell">
@@ -30,21 +30,114 @@
       </p>
     </header>
 
-    <main class="main-grid" id="app-main">
-      <section class="panel panel-form" id="predict-panel" aria-labelledby="predict-panel-title">
-        <h2 id="predict-panel-title">Predict Input</h2>
-        <p class="panel-note">Form components will be attached in the next feature.</p>
+    <main class="main-layout" id="app-main">
+      <!-- INPUT SECTION -->
+      <section class="predict-input-section" id="predict-panel">
+        <div class="section-header">
+          <h2>Predict Input</h2>
+        </div>
+
+        <form id="predict-form" novalidate>
+          <div class="form-error" id="form-error" role="alert" aria-live="polite" hidden></div>
+
+          <!-- Textarea -->
+          <div class="field">
+            <label for="text">Article Content</label>
+            <textarea
+              id="text"
+              name="text"
+              rows="4"
+              required
+              placeholder="Paste the news article content here..."
+              aria-describedby="text-error"
+              class="textarea-input"
+            ></textarea>
+            <p class="field-error" id="text-error" hidden></p>
+          </div>
+
+          <!-- Controls Row 1: Content Type, Top K -->
+          <div class="controls-row">
+            <div class="field">
+              <label for="content_type">Content Type</label>
+              <select id="content_type" name="content_type" required aria-describedby="content-type-error" class="select-input">
+                <option value="news">News</option>
+                <option value="social">Social</option>
+              </select>
+              <p class="field-error" id="content-type-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <label for="top_k">Top K</label>
+              <input id="top_k" name="top_k" type="number" min="1" max="30" step="1" value="5" aria-describedby="top-k-error" class="number-input">
+              <p class="field-error" id="top-k-error" hidden></p>
+            </div>
+          </div>
+
+          <!-- Controls Row 2: Model Family, Run ID -->
+          <div class="controls-row controls-row-secondary">
+            <div class="field">
+              <label for="model_family">Model Family</label>
+              <select id="model_family" name="model_family" required aria-describedby="model-family-error" class="select-input">
+                <option value="ml">ML</option>
+                <option value="dl">DL</option>
+              </select>
+              <p class="field-error" id="model-family-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <label for="run_id">Select Model (Run ID)</label>
+              <select id="run_id" name="run_id" required aria-describedby="run-id-error" class="select-input">
+                <option value="">Loading runs...</option>
+              </select>
+              <p class="field-hint" id="run-status" aria-live="polite">Loading runs...</p>
+              <p class="field-error" id="run-id-error" hidden></p>
+            </div>
+          </div>
+
+          <!-- Controls Row 2: Checkbox + Button -->
+          <div class="controls-footer">
+            <div class="field toggle-field">
+              <label class="checkbox-control" for="return_explanation">
+                <span class="checkbox-label">Return Explanation</span>
+                <span class="checkbox-box">
+                  <input id="return_explanation" name="return_explanation" type="checkbox" checked>
+                  <span class="checkbox-mark" aria-hidden="true"></span>
+                </span>
+              </label>
+            </div>
+
+            <button id="predict-button" class="predict-btn" type="submit">
+              <span class="btn-label">Predict</span>
+            </button>
+          </div>
+        </form>
       </section>
 
-      <section class="panel panel-result" id="result-panel" aria-labelledby="result-panel-title">
-        <h2 id="result-panel-title">Prediction Result</h2>
-        <p class="panel-note">Result rendering area is ready.</p>
-      </section>
+      <!-- RESULT SECTION with Tabs -->
+      <section class="result-section" id="result-panel">
+        <div class="tabs-header">
+          <button class="tab-button active" data-tab="result-tab" aria-selected="true">
+            Result
+          </button>
+          <button class="tab-button" data-tab="history-tab" aria-selected="false">
+            History
+          </button>
+        </div>
 
-      <aside class="panel panel-history" id="history-panel" aria-labelledby="history-panel-title">
-        <h2 id="history-panel-title">History</h2>
-        <p class="panel-note">Local history panel placeholder.</p>
-      </aside>
+        <!-- Result Tab -->
+        <div class="tab-content active" id="result-tab" role="tabpanel" aria-labelledby="result-tab">
+          <p class="panel-note" id="result-note">Submit the form to check the prediction results.</p>
+          <pre class="result-json" id="result-json" hidden></pre>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-content" id="history-tab" role="tabpanel" aria-labelledby="history-tab" hidden>
+          <div class="history-placeholder">
+            <p class="panel-note">Local history panel placeholder.</p>
+            <div id="history-list" class="history-list"></div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="page-footer">

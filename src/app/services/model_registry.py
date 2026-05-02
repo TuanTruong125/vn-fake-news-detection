@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -74,3 +75,95 @@ class ModelRegistry:
         if not normalized:
             return False
         return self._dl_artifacts_exist(normalized)
+
+
+    # List available runs for UI selection with BEST markers.
+    def list_runs_with_best(self) -> list[dict[str, str | bool]]:
+        ml_dir = self.repo_root / "models" / "ml"
+        dl_dir = self.repo_root / "models" / "dl"
+        runs: list[dict[str, str | bool]] = []
+
+        ml_run_ids: set[str] = set()
+        for metadata_file in ml_dir.glob("*__metadata.json"):
+            run_id = metadata_file.name.replace("__metadata.json", "").strip()
+            if run_id and self._ml_artifacts_exist(run_id):
+                ml_run_ids.add(run_id)
+
+        dl_run_ids: set[str] = set()
+        if dl_dir.exists():
+            for run_dir in dl_dir.iterdir():
+                if run_dir.is_dir() and (run_dir / "metadata.json").exists():
+                    dl_run_ids.add(run_dir.name.strip())
+
+        best_ml = self._resolve_best_ml_run_id()
+        best_dl = self._resolve_best_dl_run_id()
+
+        for run_id in sorted(ml_run_ids):
+            runs.append({
+                "run_id": run_id,
+                "model_family": "ml",
+                "is_best": run_id == best_ml,
+            })
+        for run_id in sorted(dl_run_ids):
+            runs.append({
+                "run_id": run_id,
+                "model_family": "dl",
+                "is_best": run_id == best_dl,
+            })
+
+        return runs
+
+
+    # Resolve ML best run ID from best-config artifacts.
+    def _resolve_best_ml_run_id(self) -> str | None:
+        best_config_path = self.repo_root / "experiments" / "ml" / "best_config.json"
+        if best_config_path.exists():
+            try:
+                payload = json.loads(best_config_path.read_text(encoding="utf-8"))
+                best_run = payload.get("best_run", {})
+                run_id = str(best_run.get("run_id", "")).strip()
+                if run_id:
+                    return run_id
+            except Exception:
+                pass
+
+        best_metadata_path = self.repo_root / "models" / "ml" / "best_metadata.json"
+        if best_metadata_path.exists():
+            try:
+                payload = json.loads(best_metadata_path.read_text(encoding="utf-8"))
+                run_id = str(payload.get("run_id", "")).strip()
+                if run_id:
+                    return run_id
+            except Exception:
+                pass
+        return None
+
+
+    # Resolve DL best run ID from best-run artifacts.
+    def _resolve_best_dl_run_id(self) -> str | None:
+        best_run_json = self.repo_root / "models" / "dl" / "best_run.json"
+        if best_run_json.exists():
+            try:
+                payload = json.loads(best_run_json.read_text(encoding="utf-8"))
+                run_id = str(payload.get("run_id", "")).strip()
+                if run_id:
+                    return run_id
+            except Exception:
+                pass
+
+        best_run_txt = self.repo_root / "models" / "dl" / "best_run_id.txt"
+        if best_run_txt.exists():
+            run_id = best_run_txt.read_text(encoding="utf-8").strip()
+            if run_id:
+                return run_id
+
+        best_metadata = self.repo_root / "models" / "dl" / "best_metadata.json"
+        if best_metadata.exists():
+            try:
+                payload = json.loads(best_metadata.read_text(encoding="utf-8"))
+                run_id = str(payload.get("run_id", "")).strip()
+                if run_id:
+                    return run_id
+            except Exception:
+                pass
+        return None

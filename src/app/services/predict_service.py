@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,19 @@ class PredictService:
         self.explain_service = ExplainService()
 
 
+    # Server-side text normalization to handle escaped/newline artifacts from clients.
+    def _normalize_text(self, text: str) -> str:
+        if text is None:
+            return ""
+
+        # Normalize newlines: handle CRLF (\r\n), CR (\r), and escaped versions (\\r\\n, \\n, \\r).
+        t = text.replace("\r\n", "\n").replace("\r", "\n")
+        t = t.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\n")
+        t = t.replace("\\t", "\t")
+        t = t.replace("\\\"", '"')
+        return t
+
+
     # Main entry point for handling prediction requests, which includes run_id resolution, routing to the appropriate inference engine, and error handling for validation and inference errors.
     def predict(
         self,
@@ -40,6 +54,23 @@ class PredictService:
         top_k: int | None,
         return_explanation: bool,
     ) -> dict[str, Any]:
+        
+        # Server-side normalization (defensive layer)
+        text = self._normalize_text(text)
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        text_length = len(text)
+        non_whitespace_count = len(text.split())
+        text_preview = text[:100].replace("\n", "\\n")
+        print(
+            f"[PREDICT_DEBUG] text_hash={text_hash} | text_length={text_length} | "
+            f"non_ws_count={non_whitespace_count} | preview={text_preview}"
+        )
+        print(
+            f"[PREDICT_DEBUG] model_family={model_family} | run_id={run_id} | "
+            f"content_type={content_type} | top_k={top_k}"
+        )
+        print(f"[PREDICT_DEBUG_FULL_TEXT] {repr(text)}")
+        
         try:
             resolved = self.run_resolver.resolve(run_id=run_id, model_family=model_family)
         except RunResolverError as exc:

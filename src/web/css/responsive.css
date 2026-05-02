@@ -1,49 +1,269 @@
-@media (max-width: 1024px) {
-  .main-grid {
-    grid-template-columns: 1fr 1fr;
+/* ============================================================
+   RESPONSIVE BREAKPOINTS
+   ============================================================ */
+
+/* Desktop: 1200px+ (default in style.css) */
+
+/* ============================================================
+   TABLET (768px - 1200px)
+   ============================================================ */
+@media (max-width: 1199px) {
+  .page-shell {
+    width: min(100%, 96vw);
+    padding: var(--space-4) 0 var(--space-5);
   }
 
-  .panel-history {
-    grid-column: 1 / -1;
+  .predict-input-section,
+  .result-section {
+    padding: var(--space-5);
+  }
+
+  .section-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .controls-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+
+  .controls-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 
-@media (max-width: 768px) {
+/* ============================================================
+   MOBILE (< 768px)
+   ============================================================ */
+@media (max-width: 767px) {
   .page-shell {
-    width: min(1200px, 95vw);
-    padding-top: 16px;
+    padding: var(--space-3) 0 var(--space-4);
   }
 
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
   }
 
-  .topbar-links {
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .hero {
-    padding: 24px 18px;
-  }
-
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 375px) {
-  .brand-logo {
-    width: 38px;
-    height: 38px;
-  }
-
-  .brand-text {
+  .brand {
     font-size: 0.95rem;
   }
 
-  .panel {
-    padding: 16px 14px;
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .topbar-links {
+    gap: var(--space-4);
+    font-size: 0.85rem;
+  }
+
+  .hero {
+    padding: var(--space-5) var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+
+  .hero h1 {
+    font-size: 1.4rem;
+  }
+
+  .hero-kicker {
+    font-size: 0.7rem;
+  }
+
+  .main-layout {
+    gap: var(--space-4);
+  }
+
+  .predict-input-section,
+  .result-section {
+    padding: var(--space-4);
+    border-radius: 14px;
+  }
+
+  .section-header {
+    margin-bottom: var(--space-4);
+  }
+
+  .section-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .section-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .field label {
+    font-size: 0.8rem;
+  }
+
+  .textarea-input {
+    min-height: 80px;
+    font-size: 0.9rem;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .textarea-input:focus {
+    min-height: 120px;
+  }
+
+  .controls-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .controls-footer {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+  }
+
+  .checkbox-control {
+    width: 100%;
+  }
+
+  .predict-btn {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.95rem;
+  }
+
+  .tabs-header {
+    padding: 0;
+  }
+
+  .tab-button {
+    padding: var(--space-3);
+    font-size: 0.85rem;
+  }
+
+  .tab-content {
+    padding: var(--space-4);
+  }
+
+  .result-json {
+    max-height: 300px;
+    font-size: 0.75rem;
+    padding: var(--space-3);
+  }
+
+  .page-footer {
+    font-size: 0.75rem;
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+  }
+}
+
+/* ============================================================
+   SMALL MOBILE (< 480px)
+   ============================================================ */
+@media (max-width: 479px) {
+  .page-shell {
+    width: 100%;
+    padding: var(--space-2) 0 var(--space-3);
+  }
+
+  .topbar {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .brand {
+    font-size: 0.85rem;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .topbar-links {
+    gap: var(--space-3);
+    font-size: 0.7rem;
+  }
+
+  .hero {
+    padding: var(--space-4) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .hero h1 {
+    font-size: 1.2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .predict-input-section,
+  .result-section {
+    padding: var(--space-3);
+  }
+
+  .field label {
+    font-size: 0.75rem;
+    margin-bottom: var(--space-1);
+  }
+
+  .field-hint {
+    font-size: 0.7rem;
+  }
+
+  .textarea-input {
+    min-height: 70px;
+    padding: var(--space-2);
+    font-size: 0.85rem;
+    border-radius: 8px;
+  }
+
+  .select-input,
+  .number-input {
+    padding: var(--space-2);
+    border-radius: 8px;
+    font-size: 0.85rem;
+  }
+
+  .controls-row {
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+
+  .controls-footer {
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    margin-top: var(--space-3);
+  }
+
+  .checkbox-control {
+    gap: var(--space-2);
+    padding: 10px 12px;
+  }
+
+  .predict-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.85rem;
+    border-radius: 10px;
+  }
+
+  .checkbox-label {
+    font-size: 0.8rem;
+  }
+
+  .section-header h2 {
+    font-size: 0.95rem;
+  }
+
+  .tab-button {
+    padding: var(--space-2);
+    font-size: 0.75rem;
+  }
+
+  .tab-content {
+    padding: var(--space-3);
   }
 }
