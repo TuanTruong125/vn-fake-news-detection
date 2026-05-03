@@ -119,6 +119,12 @@ export function createApiClient(options = {}) {
         run_id: String(item.run_id).trim(),
         model_family: String(item.model_family).toLowerCase(),
         is_best: Boolean(item.is_best),
+        // preserve optional metadata fields if present
+        model_name: item.model_name ?? null,
+        feature_set: item.feature_set ?? null,
+        text_variant: item.text_variant ?? null,
+        params: item.params ?? null,
+        threshold: item.threshold ?? null,
       }));
   }
 

@@ -1126,6 +1126,108 @@ p {
 }
 
 /* ============================================================
+   MODEL INFO PANEL
+   ============================================================ */
+.model-info-panel {
+  margin-top: var(--space-4);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-4);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(251, 253, 254, 0.96) 0%, rgba(244, 247, 250, 0.92) 100%);
+  animation: fade-rise 0.3s ease both;
+  box-shadow: 0 8px 24px rgba(15, 31, 38, 0.06);
+}
+
+.model-info-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.model-info-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.model-info-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.model-info-list {
+  display: grid;
+  grid-template-columns: minmax(132px, 18%) 1fr;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.model-info-list dt {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  align-self: start;
+  padding-top: 0.25rem;
+}
+
+.model-info-list dd {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  margin: 0;
+  font-family: var(--font-mono);
+  line-height: 1.45;
+  word-break: break-word;
+  white-space: pre-wrap; /* preserve newlines for params formatting */
+  padding: 0.2rem 0 0.25rem 0.75rem;
+  border-left: 1px solid rgba(149, 168, 182, 0.16);
+}
+
+.model-info-list dt {
+  padding-top: 4px;
+}
+
+.model-info-panel[data-family="ml"] {
+  background: linear-gradient(135deg, rgba(247, 250, 252, 0.98) 0%, rgba(241, 248, 246, 0.95) 100%);
+}
+
+.model-info-panel[data-family="dl"] {
+  background: linear-gradient(135deg, rgba(251, 248, 255, 0.98) 0%, rgba(245, 248, 252, 0.95) 100%);
+}
+
+.model-info-panel[data-family="dl"] .model-info-list dd {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding-right: 0.6rem;
+}
+
+.model-info-panel[data-family="dl"] .model-info-list dd:empty {
+  display: none;
+}
+
+.model-info-panel[data-family="dl"] .model-info-list dt[hidden],
+.model-info-panel[data-family="dl"] .model-info-list dd[hidden] {
+  display: none;
+}
+
+.model-info-panel {
+  box-shadow: var(--shadow-1);
+  border-radius: 12px;
+}
+
+/* ============================================================
    UTILITY CLASSES
    ============================================================ */
 [hidden] {
