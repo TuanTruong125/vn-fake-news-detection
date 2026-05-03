@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -105,6 +105,11 @@ class RunOption(BaseModel):
     run_id: str
     model_family: Literal["ml", "dl"]
     is_best: bool
+    model_name: str | None = None
+    feature_set: str | None = None
+    text_variant: str | None = None
+    params: dict[str, Any] | None = None
+    threshold: float | None = None
 
 
 # Response schema for listing available runs.

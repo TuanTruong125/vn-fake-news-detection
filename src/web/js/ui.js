@@ -750,6 +750,118 @@ export function initUI() {
   }
 
 
+  // Display model configuration information for the selected run.
+  function displayModelInfo(runId) {
+    const modelInfoPanel = document.getElementById("model-info-panel");
+    const subtitleEl = document.getElementById("model-info-subtitle");
+    if (!modelInfoPanel) {
+      return;
+    }
+
+    if (!runId) {
+      modelInfoPanel.hidden = true;
+      if (subtitleEl) subtitleEl.textContent = "";
+      return;
+    }
+
+    const selectedRun = state.allRuns.find((run) => run.run_id === runId);
+    if (!selectedRun) {
+      modelInfoPanel.hidden = true;
+      if (subtitleEl) subtitleEl.textContent = "";
+      return;
+    }
+
+    
+    // Helper to format params object into readable lines: key = value
+    function formatParams(params, indent = "") {
+      if (params === null || params === undefined) return "-";
+      if (typeof params === "string") return params || "-";
+      if (typeof params === "number" || typeof params === "boolean") return String(params);
+      if (Array.isArray(params)) {
+        if (!params.length) return "-";
+        return params
+          .map((item, index) => {
+            const value = typeof item === "object" && item !== null ? formatParams(item, `${indent}  `) : String(item);
+            return `${indent}${index + 1}. ${value}`;
+          })
+          .join("\n");
+      }
+      if (typeof params === "object") {
+        try {
+          const pairs = [];
+          for (const [key, value] of Object.entries(params)) {
+            if (value && typeof value === "object") {
+              pairs.push(`${indent}${key}:`);
+              pairs.push(formatParams(value, `${indent}  `));
+            } else {
+              pairs.push(`${indent}${key} = ${value}`);
+            }
+          }
+          return pairs.length ? pairs.join("\n") : "-";
+        } catch {
+          return JSON.stringify(params, null, 2);
+        }
+      }
+      return String(params);
+    }
+
+    // Update basic fields (always show, use '-' when missing)
+    const modelNameEl = document.getElementById("model-info-name");
+    if (modelNameEl) {
+      modelNameEl.textContent = selectedRun.model_name || "-";
+    }
+
+    const featureSetEl = document.getElementById("model-info-feature-set");
+    if (featureSetEl) {
+      featureSetEl.textContent = selectedRun.feature_set || "-";
+    }
+
+    const textVariantEl = document.getElementById("model-info-text-variant");
+    if (textVariantEl) {
+      textVariantEl.textContent = selectedRun.text_variant || "-";
+    }
+
+    if (subtitleEl) {
+      subtitleEl.textContent = selectedRun.model_family === "ml"
+        ? "Classical ML model details"
+        : "Transformer / deep learning details";
+      modelInfoPanel.dataset.family = selectedRun.model_family || "";
+    }
+
+    // Params: always show (display '-' when empty). Use pre-style formatting.
+    const paramsDtEl = document.getElementById("model-info-params-dt");
+    const paramsDdEl = document.getElementById("model-info-params");
+    if (paramsDtEl) paramsDtEl.hidden = false;
+    if (paramsDdEl) {
+      paramsDdEl.hidden = false;
+      paramsDdEl.textContent = formatParams(selectedRun.params);
+    }
+
+    // Threshold: always show, format or '-' when absent
+    const thresholdDtEl = document.getElementById("model-info-threshold-dt");
+    const thresholdDdEl = document.getElementById("model-info-threshold");
+    if (thresholdDtEl) thresholdDtEl.hidden = false;
+    if (thresholdDdEl) {
+      thresholdDdEl.hidden = false;
+      thresholdDdEl.textContent = selectedRun.threshold === null || selectedRun.threshold === undefined
+        ? "-"
+        : String(selectedRun.threshold);
+    }
+
+    // Hide empty rows for DL to avoid visual gaps while still keeping the data visible when present.
+    const featureSetDtEl = document.querySelector("#model-info-feature-set")?.previousElementSibling;
+    const textVariantDtEl = document.querySelector("#model-info-text-variant")?.previousElementSibling;
+    const hasFeatureSet = Boolean(selectedRun.feature_set);
+    const hasTextVariant = Boolean(selectedRun.text_variant);
+    if (featureSetDtEl) featureSetDtEl.hidden = !hasFeatureSet;
+    if (featureSetEl) featureSetEl.hidden = !hasFeatureSet;
+    if (textVariantDtEl) textVariantDtEl.hidden = !hasTextVariant;
+    if (textVariantEl) textVariantEl.hidden = !hasTextVariant;
+
+    modelInfoPanel.hidden = false;
+  }
+
+
   // Refresh the run options in the dropdown based on the selected model family and available runs.
   function refreshRunOptions() {
     const family = String(elements.modelFamily?.value ?? "ml").toLowerCase();
@@ -768,6 +880,7 @@ export function initUI() {
       if (elements.runStatus) {
         elements.runStatus.textContent = `No ${family.toUpperCase()} run available.`;
       }
+      displayModelInfo("");
       return;
     }
 
@@ -783,6 +896,7 @@ export function initUI() {
     if (elements.runStatus) {
       elements.runStatus.textContent = `${filtered.length} run(s) loaded for ${family.toUpperCase()}.`;
     }
+    displayModelInfo(elements.runId.value);
   }
 
 
@@ -954,6 +1068,7 @@ export function initUI() {
     loadRunOptions,
     refreshRunOptions,
     setRunLoadingState,
+    displayModelInfo,
     getPayload,
     validatePayload,
     renderResult,

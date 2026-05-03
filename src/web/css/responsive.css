@@ -242,6 +242,38 @@
     padding-top: var(--space-4);
   }
 
+  .model-info-panel {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .model-info-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+  }
+
+  .model-info-subtitle {
+    white-space: normal;
+  }
+
+  .model-info-list {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-2);
+  }
+
+  .model-info-list dt {
+    padding-top: 0;
+    font-size: 0.7rem;
+  }
+
+  .model-info-list dd {
+    border-left: none;
+    padding: 0;
+    font-size: 0.78rem;
+  }
+
   .checkbox-control {
     width: 100%;
   }
@@ -250,6 +282,10 @@
     width: 100%;
     padding: var(--space-3) var(--space-4);
     font-size: 0.95rem;
+  }
+
+  .model-info-panel[data-family="dl"] .model-info-list dd {
+    background: transparent;
   }
 
   .tabs-header {
@@ -307,6 +343,28 @@
     font-size: 0.75rem;
     margin-top: var(--space-4);
     padding-top: var(--space-4);
+  }
+
+  .model-info-panel {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .model-info-title {
+    font-size: 0.85rem;
+  }
+
+  .model-info-list {
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .model-info-list dt {
+    font-size: 0.75rem;
+  }
+
+  .model-info-list dd {
+    font-size: 0.8rem;
   }
 }
 
@@ -387,6 +445,23 @@
     gap: var(--space-2);
     padding-top: var(--space-3);
     margin-top: var(--space-3);
+  }
+
+  .model-info-panel {
+    padding: var(--space-3);
+  }
+
+  .model-info-title {
+    font-size: 0.9rem;
+  }
+
+  .model-info-subtitle {
+    font-size: 0.7rem;
+  }
+
+  .model-info-panel[data-family="dl"] .model-info-list dd {
+    padding-right: 0;
+    background: transparent;
   }
 
   .checkbox-control {

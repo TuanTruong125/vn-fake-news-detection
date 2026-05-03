@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 
 # Container for run metadata including family and artifact path.
@@ -99,19 +99,109 @@ class ModelRegistry:
         best_dl = self._resolve_best_dl_run_id()
 
         for run_id in sorted(ml_run_ids):
+            metadata = self._load_ml_metadata(run_id)
             runs.append({
                 "run_id": run_id,
                 "model_family": "ml",
                 "is_best": run_id == best_ml,
+                "model_name": metadata.get("model_name"),
+                "feature_set": metadata.get("feature_set"),
+                "text_variant": metadata.get("text_variant"),
+                "params": metadata.get("params"),
+                "threshold": metadata.get("threshold"),
             })
         for run_id in sorted(dl_run_ids):
+            metadata = self._load_dl_metadata(run_id)
             runs.append({
                 "run_id": run_id,
                 "model_family": "dl",
                 "is_best": run_id == best_dl,
+                "model_name": metadata.get("model_name"),
+                "feature_set": metadata.get("feature_set"),
+                "text_variant": metadata.get("text_variant"),
+                "params": metadata.get("params"),
+                "threshold": metadata.get("threshold"),
             })
 
         return runs
+
+
+    # Load ML metadata from JSON file.
+    def _load_ml_metadata(self, run_id: str) -> dict[str, Any]:
+        metadata_path = self.repo_root / "models" / "ml" / f"{run_id}__metadata.json"
+        if not metadata_path.exists():
+            return {}
+        try:
+            with metadata_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            selection = data.get("selection", {}) if isinstance(data, dict) else {}
+            threshold_calibration = data.get("threshold_calibration", {}) if isinstance(data, dict) else {}
+            return {
+                "model_name": selection.get("model_name") or data.get("model_name"),
+                "feature_set": selection.get("feature_set") or data.get("feature_set"),
+                "text_variant": selection.get("text_variant") or data.get("text_variant"),
+                "params": selection.get("params") or data.get("params"),
+                "threshold": self._resolve_threshold(data),
+            }
+        except Exception:
+            return {}
+
+
+    # Load DL metadata from JSON file.
+    def _load_dl_metadata(self, run_id: str) -> dict[str, Any]:
+        metadata_path = self.repo_root / "models" / "dl" / run_id / "metadata.json"
+        if not metadata_path.exists():
+            return {}
+        try:
+            with metadata_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            config_snapshot = data.get("config_snapshot", {}) if isinstance(data, dict) else {}
+            model_snapshot = config_snapshot.get("model", {}) if isinstance(config_snapshot, dict) else {}
+            training_snapshot = config_snapshot.get("training", {}) if isinstance(config_snapshot, dict) else {}
+            return {
+                "model_name": model_snapshot.get("pretrained_name") or data.get("model_name"),
+                "feature_set": config_snapshot.get("feature_set") or data.get("feature_set"),
+                "text_variant": config_snapshot.get("text_variant") or data.get("text_variant"),
+                "params": {
+                    **({"model": model_snapshot} if model_snapshot else {}),
+                    **({"training": training_snapshot} if training_snapshot else {}),
+                }
+                or data.get("params"),
+                "threshold": self._resolve_threshold(data),
+            }
+        except Exception:
+            return {}
+
+
+    # Resolve the best threshold from metadata, preferring recommended_threshold and falling back to 0.5.
+    def _resolve_threshold(self, metadata: Any) -> float:
+        if not isinstance(metadata, dict):
+            return 0.5
+
+        threshold_calibration = metadata.get("threshold_calibration", {})
+        if isinstance(threshold_calibration, dict):
+            recommended = threshold_calibration.get("recommended_threshold")
+            if recommended is not None:
+                try:
+                    return float(recommended)
+                except (TypeError, ValueError):
+                    pass
+
+            default_threshold = threshold_calibration.get("default_threshold")
+            if default_threshold is not None:
+                try:
+                    return float(default_threshold)
+                except (TypeError, ValueError):
+                    pass
+
+        raw_threshold = metadata.get("threshold")
+        if raw_threshold is not None:
+            try:
+                return float(raw_threshold)
+            except (TypeError, ValueError):
+                pass
+
+        return 0.5
 
 
     # Resolve ML best run ID from best-config artifacts.

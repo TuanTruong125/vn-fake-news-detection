@@ -93,6 +93,12 @@ function bootstrap() {
     ui.setFormError("");
   });
 
+  ui.elements.runId?.addEventListener("change", () => {
+    const selectedRunId = ui.elements.runId.value;
+    ui.displayModelInfo(selectedRunId);
+    ui.clearFieldErrors();
+  });
+
   ui.elements.historyList?.addEventListener("click", (event) => {
     const itemNode = event.target.closest?.(".history-item");
     if (!itemNode) {

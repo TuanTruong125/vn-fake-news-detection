@@ -48,6 +48,7 @@
 
     <!-- MAIN CONTENT -->
     <main class="main-layout" id="app-main">
+      
       <!-- INPUT SECTION -->
       <section class="predict-input-section" id="predict-panel">
         <div class="section-header">
@@ -111,7 +112,31 @@
             </div>
           </div>
 
-          <!-- Controls Row 2: Checkbox + Button -->
+          <!-- Model Configuration Info Panel -->
+          <div id="model-info-panel" class="model-info-panel" hidden>
+            <div class="model-info-header">
+              <h3 class="model-info-title">Model Configuration</h3>
+              <p class="model-info-subtitle" id="model-info-subtitle"></p>
+            </div>
+            <dl class="model-info-list">
+              <dt>Model</dt>
+              <dd id="model-info-name">-</dd>
+
+              <dt>Feature Set</dt>
+              <dd id="model-info-feature-set">-</dd>
+
+              <dt>Text Variant</dt>
+              <dd id="model-info-text-variant">-</dd>
+
+              <dt id="model-info-params-dt" hidden>Parameters</dt>
+              <dd id="model-info-params" hidden>-</dd>
+
+              <dt id="model-info-threshold-dt" hidden>Threshold</dt>
+              <dd id="model-info-threshold" hidden>-</dd>
+            </dl>
+          </div>
+
+          <!-- Controls Row 3: Checkbox + Button -->
           <div class="controls-footer">
             <div class="field toggle-field">
               <label class="checkbox-control" for="return_explanation">
@@ -129,6 +154,7 @@
           </div>
         </form>
       </section>
+
 
       <!-- RESULT SECTION with Tabs -->
       <section class="result-section" id="result-panel">
