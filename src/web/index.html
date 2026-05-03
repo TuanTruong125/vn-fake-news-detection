@@ -11,25 +11,42 @@
 </head>
 <body>
   <div class="page-shell">
+
+    <!-- TOPBAR -->
     <nav class="topbar" aria-label="Main navigation">
       <a class="brand" href="#" aria-label="Home">
         <img class="brand-logo" src="./assets/logo.png" alt="VN Fake News Detector logo">
         <span class="brand-text">VN Fake News Detector</span>
       </a>
+      <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-controls="mobile-menu-drawer" aria-expanded="false" aria-label="Open navigation menu">
+        <span class="mobile-menu-icon" aria-hidden="true"></span>
+      </button>
       <div class="topbar-links">
         <a href="#" aria-disabled="true">Docs</a>
         <a href="#" aria-disabled="true">About</a>
       </div>
     </nav>
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay" hidden></div>
+    <aside id="mobile-menu-drawer" class="mobile-menu-drawer" aria-hidden="true" inert hidden>
+      <div class="mobile-menu-head">
+        <strong>Menu</strong>
+        <button id="mobile-menu-close" class="mobile-menu-close" type="button" aria-label="Close navigation menu">&times;</button>
+      </div>
+      <nav id="mobile-menu-links" class="mobile-menu-links" aria-label="Mobile navigation"></nav>
+    </aside>
 
+
+    <!-- HERO -->
     <header class="hero">
-      <p class="hero-kicker">Foundation</p>
-      <h1>News Verification Workspace</h1>
+      <p class="hero-kicker">Vietnamese Misinformation Detection</p>
+      <h1>VN Fake News Detector</h1>
       <p class="hero-subtitle">
-        Bootstrap UI shell for prediction, explanation, and history workflows.
+        Detect fake or reliable Vietnamese news and social content with ML/DL models, confidence scores, explainable features, and prediction history tracking.
       </p>
     </header>
 
+
+    <!-- MAIN CONTENT -->
     <main class="main-layout" id="app-main">
       <!-- INPUT SECTION -->
       <section class="predict-input-section" id="predict-panel">
@@ -153,11 +170,104 @@
       </section>
     </main>
 
+
+    <!-- FOOTER -->
     <footer class="page-footer">
-      <small>VN Fake News Detector • Frontend Bootstrap</small>
+      <div class="footer-inner">
+        <div class="footer-left">
+          <span class="footer-brand">VN Fake News Detector</span>
+          <span class="footer-tag">Research &amp; Education</span>
+          <span class="footer-tag">Author: Nguyen Hoang Nhut Thien | Truong Anh Tuan</span>
+          <span class="footer-tag">Copyright ©2026 Ton Duc Thang University</span>
+        </div>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Docs</a>
+          <a href="/about">About</a>
+          <a href="https://github.com/TuanTruong125/vn-fake-news-detection">GitHub</a>
+        </nav>
+      </div>
     </footer>
   </div>
 
+
+  <!-- SCRIPTS -->
   <script type="module" src="./js/main.js"></script>
+  <script>
+    (function () {
+      const toggle = document.getElementById("mobile-menu-toggle");
+      const closeBtn = document.getElementById("mobile-menu-close");
+      const overlay = document.getElementById("mobile-menu-overlay");
+      const drawer = document.getElementById("mobile-menu-drawer");
+      const drawerLinks = document.getElementById("mobile-menu-links");
+      const desktopLinks = document.querySelectorAll(".topbar-links a");
+
+      if (!toggle || !closeBtn || !overlay || !drawer || !drawerLinks || desktopLinks.length === 0) {
+        return;
+      }
+
+      drawerLinks.innerHTML = "";
+      desktopLinks.forEach((link) => {
+        const mobileLink = document.createElement("a");
+        mobileLink.textContent = link.textContent;
+        mobileLink.setAttribute("href", link.getAttribute("href") || "#");
+        if (link.hasAttribute("aria-disabled")) {
+          mobileLink.setAttribute("aria-disabled", link.getAttribute("aria-disabled") || "true");
+        }
+        drawerLinks.appendChild(mobileLink);
+      });
+
+      let closeTimer;
+      function openMenu() {
+        clearTimeout(closeTimer);
+        drawer.hidden = false;
+        overlay.hidden = false;
+        drawer.inert = false;
+        requestAnimationFrame(() => {
+          drawer.classList.add("is-open");
+          overlay.classList.add("is-open");
+        });
+        drawer.setAttribute("aria-hidden", "false");
+        toggle.setAttribute("aria-expanded", "true");
+        closeBtn.focus();
+      }
+
+      function closeMenu() {
+        if (drawer.contains(document.activeElement)) {
+          toggle.focus();
+        }
+        drawer.classList.remove("is-open");
+        overlay.classList.remove("is-open");
+        drawer.setAttribute("aria-hidden", "true");
+        drawer.inert = true;
+        toggle.setAttribute("aria-expanded", "false");
+        closeTimer = setTimeout(() => {
+          if (!drawer.classList.contains("is-open")) {
+            drawer.hidden = true;
+            overlay.hidden = true;
+          }
+        }, 260);
+      }
+
+      toggle.addEventListener("click", () => {
+        if (drawer.classList.contains("is-open")) {
+          closeMenu();
+          return;
+        }
+        openMenu();
+      });
+      closeBtn.addEventListener("click", closeMenu);
+      overlay.addEventListener("click", closeMenu);
+      drawerLinks.addEventListener("click", (event) => {
+        if (event.target && event.target.tagName === "A") {
+          closeMenu();
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && drawer.classList.contains("is-open")) {
+          closeMenu();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
