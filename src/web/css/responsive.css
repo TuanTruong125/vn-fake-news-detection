@@ -265,13 +265,13 @@
 
   .model-info-list dt {
     padding-top: 0;
-    font-size: 0.7rem;
+    font-size: 0.66rem;
   }
 
   .model-info-list dd {
     border-left: none;
     padding: 0;
-    font-size: 0.78rem;
+    font-size: 0.74rem;
   }
 
   .checkbox-control {
@@ -351,20 +351,20 @@
   }
 
   .model-info-title {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
   }
 
   .model-info-list {
     grid-template-columns: auto 1fr;
-    gap: var(--space-2) var(--space-3);
+    gap: 6px var(--space-2);
   }
 
   .model-info-list dt {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
   }
 
   .model-info-list dd {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 }
 
@@ -436,6 +436,16 @@
     font-size: 0.85rem;
   }
 
+  .run-dropdown-menu {
+    max-height: 240px;
+  }
+
+  .run-dropdown-option,
+  .run-dropdown-empty {
+    padding: 9px 10px;
+    font-size: 0.84rem;
+  }
+
   .controls-row {
     gap: var(--space-2);
     margin-top: var(--space-3);
@@ -452,16 +462,20 @@
   }
 
   .model-info-title {
-    font-size: 0.9rem;
+    font-size: 0.84rem;
   }
 
   .model-info-subtitle {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
   }
 
   .model-info-panel[data-family="dl"] .model-info-list dd {
     padding-right: 0;
     background: transparent;
+  }
+
+  .run-dropdown-option-tag {
+    font-size: 0.58rem;
   }
 
   .checkbox-control {
