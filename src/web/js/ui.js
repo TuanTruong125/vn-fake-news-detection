@@ -92,8 +92,21 @@ export function initUI() {
     formError: document.getElementById("form-error"),
     text: document.getElementById("text"),
     modelFamily: document.getElementById("model_family"),
+    modelFamilyDropdown: document.getElementById("model-family-dropdown"),
+    modelFamilyDropdownToggle: document.getElementById("model-family-dropdown-toggle"),
+    modelFamilyDropdownValue: document.getElementById("model-family-dropdown-value"),
+    modelFamilyDropdownMenu: document.getElementById("model-family-dropdown-menu"),
     contentType: document.getElementById("content_type"),
+    contentTypeDropdown: document.getElementById("content-type-dropdown"),
+    contentTypeDropdownToggle: document.getElementById("content-type-dropdown-toggle"),
+    contentTypeDropdownValue: document.getElementById("content-type-dropdown-value"),
+    contentTypeDropdownMenu: document.getElementById("content-type-dropdown-menu"),
     runId: document.getElementById("run_id"),
+    runSelectBestTag: document.getElementById("run-select-best-tag"),
+    runDropdown: document.getElementById("run-dropdown"),
+    runDropdownToggle: document.getElementById("run-dropdown-toggle"),
+    runDropdownValue: document.getElementById("run-dropdown-value"),
+    runDropdownMenu: document.getElementById("run-dropdown-menu"),
     topK: document.getElementById("top_k"),
     returnExplanation: document.getElementById("return_explanation"),
     runStatus: document.getElementById("run-status"),
@@ -128,6 +141,7 @@ export function initUI() {
     latestResultJson: "",
     copyStateTimer: null,
     allHistoryItems: [],
+    openDropdownKey: null,
   };
 
 
@@ -266,11 +280,11 @@ export function initUI() {
       case "text":
         return elements.text;
       case "model_family":
-        return elements.modelFamily;
+        return elements.modelFamilyDropdownToggle ?? elements.modelFamily;
       case "content_type":
-        return elements.contentType;
+        return elements.contentTypeDropdownToggle ?? elements.contentType;
       case "run_id":
-        return elements.runId;
+        return elements.runDropdownToggle ?? elements.runId;
       case "top_k":
         return elements.topK;
       default:
@@ -372,12 +386,564 @@ export function initUI() {
       key.className = "result-kv-key";
       key.textContent = row.key;
       const value = document.createElement("strong");
-      value.className = "result-kv-value";
-      value.textContent = row.value;
+      value.className = `result-kv-value ${row.valueClass ?? ""}`.trim();
+
+      if (row.badgeText) {
+        value.classList.add("result-kv-value-inline");
+        const valueText = document.createElement("span");
+        valueText.className = "result-run-id";
+        valueText.textContent = row.value;
+        const badge = document.createElement("span");
+        badge.className = `best-run-tag ${row.badgeClass ?? ""}`.trim();
+        badge.textContent = row.badgeText;
+        value.appendChild(valueText);
+        value.appendChild(badge);
+      } else {
+        value.textContent = row.value;
+      }
+
       item.appendChild(key);
       item.appendChild(value);
       target.appendChild(item);
     }
+  }
+
+
+  // Check if a run_id is marked as best for a specific model family.
+  function isBestRun(runId, modelFamily) {
+    const normalizedRunId = String(runId ?? "").trim();
+    const normalizedFamily = String(modelFamily ?? "").toLowerCase().trim();
+    if (!normalizedRunId) {
+      return false;
+    }
+    return state.allRuns.some((run) => {
+      const sameRunId = String(run?.run_id ?? "").trim() === normalizedRunId;
+      const sameFamily = normalizedFamily
+        ? String(run?.model_family ?? "").toLowerCase().trim() === normalizedFamily
+        : true;
+      return sameRunId && sameFamily && Boolean(run?.is_best);
+    });
+  }
+
+
+  // Show/hide BEST tag for current Run ID selection.
+  function updateRunSelectBestTag(runId, modelFamily) {
+    if (!elements.runSelectBestTag) {
+      return;
+    }
+    const isBest = isBestRun(runId, modelFamily);
+    elements.runSelectBestTag.hidden = !isBest;
+  }
+
+
+  // Build the item list for a custom dropdown field.
+  function buildDropdownItems(field) {
+    switch (field) {
+      case "content_type":
+        return [
+          { value: "news", label: "News" },
+          { value: "social", label: "Social" },
+        ];
+      case "model_family":
+        return [
+          { value: "ml", label: "ML" },
+          { value: "dl", label: "DL" },
+        ];
+      default:
+        return [];
+    }
+  }
+
+
+  // Resolve a human-friendly label for a dropdown value.
+  function getDropdownLabel(field, value) {
+    const normalizedValue = String(value ?? "").toLowerCase();
+    const items = buildDropdownItems(field);
+    const matched = items.find((item) => item.value === normalizedValue);
+    return matched?.label ?? (normalizedValue ? String(value) : "Select...");
+  }
+
+
+  // Create the DOM nodes for a dropdown option list.
+  function renderDropdownMenu(menu, items, selectedValue) {
+    if (!menu) {
+      return;
+    }
+    menu.innerHTML = "";
+    for (const item of items) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "run-dropdown-option";
+      option.setAttribute("role", "option");
+      option.dataset.value = item.value;
+      option.setAttribute("aria-selected", item.value === selectedValue ? "true" : "false");
+      option.classList.toggle("is-selected", item.value === selectedValue);
+
+      const text = document.createElement("span");
+      text.className = "run-dropdown-option-text";
+      text.textContent = item.label;
+      option.appendChild(text);
+
+      if (item.isBest) {
+        const badge = document.createElement("span");
+        badge.className = "best-run-tag run-dropdown-option-tag";
+        badge.textContent = "BEST";
+        option.appendChild(badge);
+      }
+
+      menu.appendChild(option);
+    }
+  }
+
+
+  // Open or close a custom dropdown controller.
+  function setCustomDropdownOpen(controller, open) {
+    if (!controller?.toggle || !controller?.menu) {
+      return;
+    }
+    if (open) {
+      if (state.openDropdownKey && state.openDropdownKey !== controller.key) {
+        const previous = customDropdownControllers[state.openDropdownKey];
+        if (previous) {
+          setCustomDropdownOpen(previous, false);
+        }
+      }
+      if (state.runDropdownOpen) {
+        setRunDropdownOpen(false);
+      }
+    }
+    controller.menu.hidden = !open;
+    controller.toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    state.openDropdownKey = open ? controller.key : (state.openDropdownKey === controller.key ? null : state.openDropdownKey);
+    if (open) {
+      const selected = controller.menu.querySelector(".run-dropdown-option.is-selected")
+        ?? controller.menu.querySelector(".run-dropdown-option");
+      selected?.focus();
+    }
+  }
+
+
+  // Sync the visible label and hidden select for a custom dropdown.
+  function syncCustomDropdownSelection(controller, value) {
+    if (!controller) {
+      return;
+    }
+    const normalizedValue = String(value ?? "").toLowerCase();
+    const label = getDropdownLabel(controller.key, normalizedValue);
+    if (controller.value) {
+      controller.value.textContent = label;
+    }
+    if (controller.toggle) {
+      controller.toggle.classList.toggle("is-placeholder", !normalizedValue);
+    }
+    if (controller.select) {
+      controller.select.value = normalizedValue;
+    }
+    if (controller.menu) {
+      controller.menu.querySelectorAll(".run-dropdown-option").forEach((option) => {
+        const isSelected = option.dataset.value === normalizedValue;
+        option.setAttribute("aria-selected", isSelected ? "true" : "false");
+        option.classList.toggle("is-selected", isSelected);
+      });
+    }
+  }
+
+
+  // Find the active custom dropdown option to focus based on arrow navigation.
+  function focusCustomDropdownOption(controller, direction) {
+    if (!controller?.menu) {
+      return;
+    }
+    const options = Array.from(controller.menu.querySelectorAll(".run-dropdown-option"));
+    if (!options.length) {
+      return;
+    }
+    const currentIndex = options.findIndex((item) => item === document.activeElement);
+    let nextIndex = 0;
+    if (direction === "first") {
+      nextIndex = 0;
+    } else if (direction === "last") {
+      nextIndex = options.length - 1;
+    } else if (direction === "next") {
+      nextIndex = Math.min(options.length - 1, currentIndex < 0 ? 0 : currentIndex + 1);
+    } else if (direction === "prev") {
+      nextIndex = Math.max(0, currentIndex < 0 ? 0 : currentIndex - 1);
+    }
+    options[nextIndex]?.focus();
+  }
+
+
+  const customDropdownControllers = {};
+
+
+  // Initialize a custom dropdown for static option sets such as Content Type and Model Type.
+  function initCustomDropdownController(controller) {
+    if (!controller?.toggle || !controller?.menu || !controller?.select) {
+      return;
+    }
+    customDropdownControllers[controller.key] = controller;
+    const items = buildDropdownItems(controller.key);
+    renderDropdownMenu(controller.menu, items, controller.select.value);
+    syncCustomDropdownSelection(controller, controller.select.value);
+
+    controller.toggle.addEventListener("click", () => {
+      if (controller.toggle.disabled) {
+        return;
+      }
+      const isOpen = state.openDropdownKey === controller.key;
+      setCustomDropdownOpen(controller, !isOpen);
+    });
+
+    controller.toggle.addEventListener("keydown", (event) => {
+      if (controller.toggle.disabled) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setCustomDropdownOpen(controller, true);
+        focusCustomDropdownOption(controller, "first");
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setCustomDropdownOpen(controller, true);
+        focusCustomDropdownOption(controller, "last");
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        setCustomDropdownOpen(controller, !(state.openDropdownKey === controller.key));
+      } else if (event.key === "Escape") {
+        setCustomDropdownOpen(controller, false);
+      }
+    });
+
+    controller.menu.addEventListener("click", (event) => {
+      const option = event.target.closest?.(".run-dropdown-option");
+      if (!option) {
+        return;
+      }
+      controller.select.value = option.dataset.value ?? "";
+      syncCustomDropdownSelection(controller, controller.select.value);
+      setCustomDropdownOpen(controller, false);
+      controller.toggle.focus();
+      controller.select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    controller.menu.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusCustomDropdownOption(controller, "next");
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusCustomDropdownOption(controller, "prev");
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        focusCustomDropdownOption(controller, "first");
+      } else if (event.key === "End") {
+        event.preventDefault();
+        focusCustomDropdownOption(controller, "last");
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        const option = document.activeElement?.closest?.(".run-dropdown-option");
+        if (option) {
+          controller.select.value = option.dataset.value ?? "";
+          syncCustomDropdownSelection(controller, controller.select.value);
+          setCustomDropdownOpen(controller, false);
+          controller.toggle.focus();
+          controller.select.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        setCustomDropdownOpen(controller, false);
+        controller.toggle.focus();
+      }
+    });
+
+    controller.toggle.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (!controller.container.contains(document.activeElement)) {
+          setCustomDropdownOpen(controller, false);
+        }
+      }, 0);
+    });
+
+    controller.menu.addEventListener("focusin", () => {
+      setCustomDropdownOpen(controller, true);
+    });
+  }
+
+
+  // Close all custom dropdowns when clicking outside.
+  function bindCustomDropdownOutsideClick() {
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      for (const controller of Object.values(customDropdownControllers)) {
+        if (state.openDropdownKey === controller.key && !controller.container.contains(target)) {
+          setCustomDropdownOpen(controller, false);
+        }
+      }
+      if (state.runDropdownOpen && elements.runDropdown && !elements.runDropdown.contains(target)) {
+        setRunDropdownOpen(false);
+      }
+    });
+  }
+
+
+  // Render the custom run dropdown options and keep the hidden select synchronized.
+  function renderRunDropdownOptions(runs, selectedRunId) {
+    if (!elements.runId || !elements.runDropdownMenu) {
+      return;
+    }
+
+    elements.runId.innerHTML = "";
+    elements.runDropdownMenu.innerHTML = "";
+
+    if (!Array.isArray(runs) || !runs.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "";
+      elements.runId.appendChild(option);
+
+      const empty = document.createElement("div");
+      empty.className = "run-dropdown-empty";
+      empty.textContent = "No run available";
+      elements.runDropdownMenu.appendChild(empty);
+      return;
+    }
+
+    for (const run of runs) {
+      const option = document.createElement("option");
+      option.value = run.run_id;
+      option.textContent = run.run_id;
+      elements.runId.appendChild(option);
+
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "run-dropdown-option";
+      item.setAttribute("role", "option");
+      item.dataset.runId = run.run_id;
+      item.dataset.isBest = run.is_best ? "true" : "false";
+      item.setAttribute("aria-selected", run.run_id === selectedRunId ? "true" : "false");
+
+      const text = document.createElement("span");
+      text.className = "run-dropdown-option-text";
+      text.textContent = run.run_id;
+      item.appendChild(text);
+
+      if (run.is_best) {
+        const badge = document.createElement("span");
+        badge.className = "best-run-tag run-dropdown-option-tag";
+        badge.textContent = "BEST";
+        item.appendChild(badge);
+      }
+
+      elements.runDropdownMenu.appendChild(item);
+    }
+  }
+
+
+  // Update the visible run dropdown label and selected state.
+  function syncRunDropdownSelection(runId, modelFamily) {
+    if (!elements.runDropdownValue) {
+      return;
+    }
+    const normalizedRunId = String(runId ?? "").trim();
+    const selectedRun = state.allRuns.find((run) => String(run?.run_id ?? "").trim() === normalizedRunId);
+    const labelText = normalizedRunId || "Select model";
+    elements.runDropdownValue.textContent = labelText;
+
+    if (elements.runDropdownToggle) {
+      elements.runDropdownToggle.classList.toggle("is-placeholder", !normalizedRunId);
+      elements.runDropdownToggle.dataset.best = selectedRun?.is_best ? "true" : "false";
+    }
+
+    if (elements.runId) {
+      elements.runId.value = normalizedRunId;
+    }
+
+    if (elements.runSelectBestTag) {
+      elements.runSelectBestTag.hidden = !Boolean(selectedRun?.is_best);
+    }
+
+    if (elements.runDropdownMenu) {
+      const optionButtons = elements.runDropdownMenu.querySelectorAll(".run-dropdown-option");
+      optionButtons.forEach((button) => {
+        const isSelected = button.dataset.runId === normalizedRunId;
+        button.setAttribute("aria-selected", isSelected ? "true" : "false");
+        button.classList.toggle("is-selected", isSelected);
+      });
+    }
+
+    updateRunSelectBestTag(normalizedRunId, modelFamily);
+  }
+
+
+  // Open or close the custom run dropdown menu.
+  function setRunDropdownOpen(open) {
+    if (!elements.runDropdownMenu || !elements.runDropdownToggle) {
+      return;
+    }
+    if (open) {
+      for (const controller of Object.values(customDropdownControllers)) {
+        setCustomDropdownOpen(controller, false);
+      }
+    }
+    state.runDropdownOpen = Boolean(open);
+    elements.runDropdownMenu.hidden = !state.runDropdownOpen;
+    elements.runDropdownToggle.setAttribute("aria-expanded", state.runDropdownOpen ? "true" : "false");
+    if (state.runDropdownOpen) {
+      const selected = elements.runDropdownMenu.querySelector(".run-dropdown-option.is-selected")
+        ?? elements.runDropdownMenu.querySelector(".run-dropdown-option");
+      selected?.focus();
+    }
+  }
+
+
+  // Select a run_id from the custom dropdown and update dependent UI.
+  function selectRunId(runId) {
+    if (!elements.runId) {
+      return;
+    }
+    const normalizedRunId = String(runId ?? "").trim();
+    elements.runId.value = normalizedRunId;
+    syncRunDropdownSelection(normalizedRunId, elements.modelFamily?.value ?? "");
+    displayModelInfo(normalizedRunId);
+    clearFieldErrors();
+    setFormError("");
+    setRunDropdownOpen(false);
+    elements.runDropdownToggle?.focus();
+  }
+
+
+  // Move focus among run options inside the custom dropdown.
+  function focusRunDropdownOption(direction) {
+    if (!elements.runDropdownMenu) {
+      return;
+    }
+    const options = Array.from(elements.runDropdownMenu.querySelectorAll(".run-dropdown-option"));
+    if (!options.length) {
+      return;
+    }
+    const currentIndex = options.findIndex((item) => item === document.activeElement);
+    let nextIndex = 0;
+    if (direction === "first") {
+      nextIndex = 0;
+    } else if (direction === "last") {
+      nextIndex = options.length - 1;
+    } else if (direction === "next") {
+      nextIndex = Math.min(options.length - 1, currentIndex < 0 ? 0 : currentIndex + 1);
+    } else if (direction === "prev") {
+      nextIndex = Math.max(0, currentIndex < 0 ? 0 : currentIndex - 1);
+    }
+    options[nextIndex]?.focus();
+  }
+
+
+  // Bind custom dropdown interactions.
+  function initRunDropdown() {
+    if (!elements.runDropdownToggle || !elements.runDropdownMenu || !elements.runDropdown) {
+      return;
+    }
+
+    elements.runDropdownToggle.addEventListener("click", () => {
+      if (elements.runDropdownToggle.disabled) {
+        return;
+      }
+      setRunDropdownOpen(!state.runDropdownOpen);
+    });
+
+    elements.runDropdownToggle.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (!elements.runDropdown.contains(document.activeElement)) {
+          setRunDropdownOpen(false);
+        }
+      }, 0);
+    });
+
+    elements.runDropdownToggle.addEventListener("keydown", (event) => {
+      if (elements.runDropdownToggle.disabled) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setRunDropdownOpen(true);
+        focusRunDropdownOption("first");
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setRunDropdownOpen(true);
+        focusRunDropdownOption("last");
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        setRunDropdownOpen(!state.runDropdownOpen);
+      } else if (event.key === "Escape") {
+        setRunDropdownOpen(false);
+      }
+    });
+
+    elements.runDropdownMenu.addEventListener("click", (event) => {
+      const option = event.target.closest?.(".run-dropdown-option");
+      if (!option) {
+        return;
+      }
+      selectRunId(option.dataset.runId ?? "");
+    });
+
+    elements.runDropdownMenu.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusRunDropdownOption("next");
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusRunDropdownOption("prev");
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        focusRunDropdownOption("first");
+      } else if (event.key === "End") {
+        event.preventDefault();
+        focusRunDropdownOption("last");
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        const option = document.activeElement?.closest?.(".run-dropdown-option");
+        if (option) {
+          selectRunId(option.dataset.runId ?? "");
+        }
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        setRunDropdownOpen(false);
+        elements.runDropdownToggle.focus();
+      }
+    });
+
+    elements.runDropdownMenu.addEventListener("focusin", () => {
+      setRunDropdownOpen(true);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!state.runDropdownOpen) {
+        return;
+      }
+      const target = event.target;
+      if (target instanceof Node && !elements.runDropdown.contains(target)) {
+        setRunDropdownOpen(false);
+      }
+    });
+  }
+
+
+  // Prevent keyboard typing in Top K; allow only spinner controls and pointer interactions.
+  function initTopKSpinnerOnlyInput() {
+    if (!elements.topK) {
+      return;
+    }
+    elements.topK.addEventListener("keydown", (event) => {
+      event.preventDefault();
+    });
+    elements.topK.addEventListener("paste", (event) => {
+      event.preventDefault();
+    });
+    elements.topK.addEventListener("drop", (event) => {
+      event.preventDefault();
+    });
   }
 
 
@@ -569,7 +1135,9 @@ export function initUI() {
 
     const statusText = item?.meta?.status === "error" ? "Error" : "Success";
     const modelFamily = item?.request?.model_family ? String(item.request.model_family).toUpperCase() : "-";
+    const modelFamilyLower = item?.request?.model_family ? String(item.request.model_family).toLowerCase() : "";
     const runId = item?.request?.run_id ? String(item.request.run_id) : "-";
+    const bestRun = isBestRun(runId, modelFamilyLower);
     const timestamp = item?.created_at ? new Date(item.created_at).toLocaleString() : "-";
     const preview = String(item?.request?.text ?? "").replace(/\s+/g, " ").trim();
     const previewText = preview.length > 110 ? `${preview.slice(0, 110)}...` : preview || "No text preview.";
@@ -608,7 +1176,18 @@ export function initUI() {
       timeNode.textContent = timestamp;
     }
     if (runNode) {
-      runNode.textContent = runId;
+      runNode.innerHTML = "";
+      const runIdText = document.createElement("span");
+      runIdText.className = "history-run-id";
+      runIdText.textContent = runId;
+      runNode.appendChild(runIdText);
+
+      if (bestRun) {
+        const bestTag = document.createElement("span");
+        bestTag.className = "best-run-tag history-best-tag";
+        bestTag.textContent = "BEST";
+        runNode.appendChild(bestTag);
+      }
     }
     if (statusNode) {
       statusNode.textContent = statusText;
@@ -659,12 +1238,17 @@ export function initUI() {
     if (elements.modelFamily && request.model_family) {
       elements.modelFamily.value = String(request.model_family).toLowerCase();
       refreshRunOptions();
+      syncCustomDropdownSelection(customDropdownControllers.model_family, elements.modelFamily.value);
     }
     if (elements.contentType && request.content_type) {
       elements.contentType.value = String(request.content_type).toLowerCase();
+      syncCustomDropdownSelection(customDropdownControllers.content_type, elements.contentType.value);
     }
     if (elements.runId && request.run_id) {
       elements.runId.value = String(request.run_id);
+    }
+    if (elements.runDropdownValue && request.run_id) {
+      elements.runDropdownValue.textContent = String(request.run_id);
     }
     if (elements.topK) {
       elements.topK.value = Number.isFinite(Number(request.top_k)) ? String(request.top_k) : "5";
@@ -681,6 +1265,7 @@ export function initUI() {
       return;
     }
     hydrateFormFromRequest(item.request ?? {});
+    syncRunDropdownSelection(item.request?.run_id ?? "", item.request?.model_family ?? "");
     if (item.meta?.status === "error") {
       renderError(item.error ?? { message: "Failed request from history." });
     } else {
@@ -747,6 +1332,9 @@ export function initUI() {
   function loadRunOptions(runs) {
     state.allRuns = Array.isArray(runs) ? runs : [];
     refreshRunOptions();
+    if (state.allHistoryItems.length) {
+      renderHistoryList(state.allHistoryItems);
+    }
   }
 
 
@@ -761,6 +1349,7 @@ export function initUI() {
     if (!runId) {
       modelInfoPanel.hidden = true;
       if (subtitleEl) subtitleEl.textContent = "";
+      updateRunSelectBestTag("", elements.modelFamily?.value ?? "");
       return;
     }
 
@@ -768,8 +1357,11 @@ export function initUI() {
     if (!selectedRun) {
       modelInfoPanel.hidden = true;
       if (subtitleEl) subtitleEl.textContent = "";
+      updateRunSelectBestTag("", elements.modelFamily?.value ?? "");
       return;
     }
+
+    updateRunSelectBestTag(selectedRun.run_id, selectedRun.model_family);
 
     
     // Helper to format params object into readable lines: key = value
@@ -867,43 +1459,47 @@ export function initUI() {
     const family = String(elements.modelFamily?.value ?? "ml").toLowerCase();
     const filtered = state.allRuns.filter((item) => item.model_family === family);
     const previousValue = elements.runId?.value ?? "";
-    if (!elements.runId) {
+    if (!elements.runId || !elements.runDropdownToggle) {
       return;
     }
 
-    elements.runId.innerHTML = "";
     if (!filtered.length) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No run available";
-      elements.runId.appendChild(option);
+      elements.runDropdownToggle.disabled = true;
+      elements.runDropdownToggle.classList.add("is-disabled");
+      elements.runDropdownValue.textContent = "No run available";
       if (elements.runStatus) {
         elements.runStatus.textContent = `No ${family.toUpperCase()} run available.`;
       }
+      renderRunDropdownOptions([], "");
+      syncRunDropdownSelection("", family);
+      updateRunSelectBestTag("", family);
       displayModelInfo("");
       return;
     }
 
-    for (const run of filtered) {
-      const option = document.createElement("option");
-      option.value = run.run_id;
-      option.textContent = run.is_best ? `${run.run_id} (BEST)` : run.run_id;
-      elements.runId.appendChild(option);
-    }
+    elements.runDropdownToggle.disabled = false;
+    elements.runDropdownToggle.classList.remove("is-disabled");
+    renderRunDropdownOptions(filtered, previousValue);
 
     const canKeep = filtered.some((item) => item.run_id === previousValue);
-    elements.runId.value = canKeep ? previousValue : filtered[0].run_id;
+    const selectedRunId = canKeep ? previousValue : filtered[0].run_id;
     if (elements.runStatus) {
       elements.runStatus.textContent = `${filtered.length} run(s) loaded for ${family.toUpperCase()}.`;
     }
-    displayModelInfo(elements.runId.value);
+    syncRunDropdownSelection(selectedRunId, family);
+    updateRunSelectBestTag(selectedRunId, family);
+    displayModelInfo(selectedRunId);
   }
 
 
   // Set the loading state for the run options, showing a message while runs are being fetched from the backend.
   function setRunLoadingState(message) {
-    if (elements.runId) {
-      elements.runId.innerHTML = `<option value="">${message}</option>`;
+    if (elements.runDropdownToggle) {
+      elements.runDropdownToggle.disabled = true;
+      elements.runDropdownToggle.classList.add("is-disabled");
+      if (elements.runDropdownValue) {
+        elements.runDropdownValue.textContent = message;
+      }
     }
     if (elements.runStatus) {
       elements.runStatus.textContent = message;
@@ -994,7 +1590,11 @@ export function initUI() {
 
     renderKeyValueGrid(elements.resultModelGrid, [
       { key: "Model Type (Model Family)", value: String(result?.model_family ?? "-").toUpperCase() },
-      { key: "Model Selected (Run ID)", value: String(result?.run_id ?? "-") },
+      {
+        key: "Model Selected (Run ID)",
+        value: String(result?.run_id ?? "-"),
+        badgeText: isBestRun(result?.run_id, result?.model_family) ? "BEST" : "",
+      },
       { key: "Model Name", value: String(result?.model_name ?? "-") },
       { key: "Feature Set", value: String(result?.feature_set ?? "-") },
     ]);
@@ -1057,6 +1657,29 @@ export function initUI() {
       handleCopyJson();
     });
   }
+
+  initCustomDropdownController({
+    key: "content_type",
+    container: elements.contentTypeDropdown,
+    toggle: elements.contentTypeDropdownToggle,
+    value: elements.contentTypeDropdownValue,
+    menu: elements.contentTypeDropdownMenu,
+    select: elements.contentType,
+  });
+  initCustomDropdownController({
+    key: "model_family",
+    container: elements.modelFamilyDropdown,
+    toggle: elements.modelFamilyDropdownToggle,
+    value: elements.modelFamilyDropdownValue,
+    menu: elements.modelFamilyDropdownMenu,
+    select: elements.modelFamily,
+  });
+  bindCustomDropdownOutsideClick();
+  initRunDropdown();
+  initTopKSpinnerOnlyInput();
+
+  syncCustomDropdownSelection(customDropdownControllers.content_type, elements.contentType?.value ?? "news");
+  syncCustomDropdownSelection(customDropdownControllers.model_family, elements.modelFamily?.value ?? "ml");
 
   return {
     elements,

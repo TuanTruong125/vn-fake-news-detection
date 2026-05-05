@@ -77,7 +77,21 @@
           <div class="controls-row">
             <div class="field">
               <label for="content_type">Content Type</label>
-              <select id="content_type" name="content_type" required aria-describedby="content-type-error" class="select-input">
+              <div id="content-type-dropdown" class="run-dropdown">
+                <button
+                  id="content-type-dropdown-toggle"
+                  class="run-dropdown-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="content-type-dropdown-menu"
+                >
+                  <span id="content-type-dropdown-value" class="run-dropdown-value">News</span>
+                  <span class="run-dropdown-caret" aria-hidden="true"></span>
+                </button>
+                <div id="content-type-dropdown-menu" class="run-dropdown-menu" role="listbox" hidden></div>
+              </div>
+              <select id="content_type" name="content_type" required aria-describedby="content-type-error" class="run-dropdown-native" hidden aria-hidden="true" tabindex="-1">
                 <option value="news">News</option>
                 <option value="social">Social</option>
               </select>
@@ -95,7 +109,21 @@
           <div class="controls-row controls-row-secondary">
             <div class="field">
               <label for="model_family">Model Type (Model Family)</label>
-              <select id="model_family" name="model_family" required aria-describedby="model-family-error" class="select-input">
+              <div id="model-family-dropdown" class="run-dropdown">
+                <button
+                  id="model-family-dropdown-toggle"
+                  class="run-dropdown-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="model-family-dropdown-menu"
+                >
+                  <span id="model-family-dropdown-value" class="run-dropdown-value">ML</span>
+                  <span class="run-dropdown-caret" aria-hidden="true"></span>
+                </button>
+                <div id="model-family-dropdown-menu" class="run-dropdown-menu" role="listbox" hidden></div>
+              </div>
+              <select id="model_family" name="model_family" required aria-describedby="model-family-error" class="run-dropdown-native" hidden aria-hidden="true" tabindex="-1">
                 <option value="ml">ML</option>
                 <option value="dl">DL</option>
               </select>
@@ -103,8 +131,25 @@
             </div>
 
             <div class="field">
-              <label for="run_id">Select Model (Run ID)</label>
-              <select id="run_id" name="run_id" required aria-describedby="run-id-error" class="select-input">
+              <div class="field-label-row">
+                <label for="run_id">Select Model (Run ID)</label>
+                <span id="run-select-best-tag" class="best-run-tag run-select-best-tag" hidden>BEST</span>
+              </div>
+              <div id="run-dropdown" class="run-dropdown">
+                <button
+                  id="run-dropdown-toggle"
+                  class="run-dropdown-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="run-dropdown-menu"
+                >
+                  <span id="run-dropdown-value" class="run-dropdown-value">Loading runs...</span>
+                  <span class="run-dropdown-caret" aria-hidden="true"></span>
+                </button>
+                <div id="run-dropdown-menu" class="run-dropdown-menu" role="listbox" hidden></div>
+              </div>
+              <select id="run_id" name="run_id" required aria-describedby="run-id-error" class="run-dropdown-native" hidden aria-hidden="true" tabindex="-1">
                 <option value="">Loading runs...</option>
               </select>
               <p class="field-hint" id="run-status" aria-live="polite">Loading runs...</p>
