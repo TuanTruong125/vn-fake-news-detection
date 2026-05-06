@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VN Fake News Detector</title>
+  <meta name="description" content="Frontend foundation for VN Fake News Detector.">
+  <link rel="stylesheet" href="./css/style.css">
+  <link rel="stylesheet" href="./css/responsive.css">
+  <link rel="icon" href="./assets/logo.png" sizes="32x32" type="image/png">
+</head>
+<body>
+  <div class="page-shell">
+
+    <!-- TOPBAR -->
+    <nav class="topbar" aria-label="Main navigation">
+      <a class="brand" href="#" aria-label="Home">
+        <img class="brand-logo" src="./assets/logo.png" alt="VN Fake News Detector logo">
+        <span class="brand-text">VN Fake News Detector</span>
+      </a>
+      <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-controls="mobile-menu-drawer" aria-expanded="false" aria-label="Open navigation menu">
+        <span class="mobile-menu-icon" aria-hidden="true"></span>
+      </button>
+      <div class="topbar-links">
+        <a href="#" aria-disabled="true">Docs</a>
+        <a href="#" aria-disabled="true">About</a>
+      </div>
+    </nav>
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay" hidden></div>
+    <aside id="mobile-menu-drawer" class="mobile-menu-drawer" aria-hidden="true" inert hidden>
+      <div class="mobile-menu-head">
+        <strong>Menu</strong>
+        <button id="mobile-menu-close" class="mobile-menu-close" type="button" aria-label="Close navigation menu">&times;</button>
+      </div>
+      <nav id="mobile-menu-links" class="mobile-menu-links" aria-label="Mobile navigation"></nav>
+    </aside>
+
+
+    <!-- HERO -->
+    <header class="hero">
+      <p class="hero-kicker">Vietnamese Misinformation Detection</p>
+      <h1>VN Fake News Detector</h1>
+      <p class="hero-subtitle">
+        Detect fake or reliable Vietnamese news and social content with ML/DL models, confidence scores, explainable features, and prediction history tracking.
+      </p>
+    </header>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main-layout" id="app-main">
+      
+      <!-- INPUT SECTION -->
+      <section class="predict-input-section" id="predict-panel">
+        <div class="section-header">
+          <h2>Predict Input</h2>
+        </div>
+
+        <form id="predict-form" novalidate>
+          <div class="form-error" id="form-error" role="alert" aria-live="polite" hidden></div>
+
+          <!-- Textarea -->
+          <div class="field">
+            <label for="text">Article Content</label>
+            <textarea
+              id="text"
+              name="text"
+              rows="4"
+              required
+              placeholder="Paste the news article content here..."
+              aria-describedby="text-error"
+              class="textarea-input"
+            ></textarea>
+            <p class="field-error" id="text-error" hidden></p>
+          </div>
+
+          <!-- Controls Row 1: Content Type, Top K -->
+          <div class="controls-row">
+            <div class="field">
+              <label for="content_type">Content Type</label>
+              <div id="content-type-dropdown" class="run-dropdown">
+                <button
+                  id="content-type-dropdown-toggle"
+                  class="run-dropdown-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="content-type-dropdown-menu"
+                >
+                  <span id="content-type-dropdown-value" class="run-dropdown-value">News</span>
+                  <span class="run-dropdown-caret" aria-hidden="true"></span>
+                </button>
+                <div id="content-type-dropdown-menu" class="run-dropdown-menu" role="listbox" hidden></div>
+              </div>
+              <select id="content_type" name="content_type" required aria-describedby="content-type-error" class="run-dropdown-native" hidden aria-hidden="true" tabindex="-1">
+                <option value="news">News</option>
+                <option value="social">Social</option>
+              </select>
+              <p class="field-error" id="content-type-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <label for="top_k">Top K (Number Features of Explanation)</label>
+              <input id="top_k" name="top_k" type="number" min="1" max="30" step="1" value="5" aria-describedby="top-k-error" class="number-input">
+              <p class="field-error" id="top-k-error" hidden></p>
+            </div>
+          </div>
+
+          <!-- Controls Row 2: Model Family, Run ID -->
+          <div class="controls-row controls-row-secondary">
+            <div class="field">
+              <label for="model_family">Model Type (Model Family)</label>
+              <div id="model-family-dropdown" class="run-dropdown">
+                <button
+                  id="model-family-dropdown-toggle"
+                  class="run-dropdown-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="model-family-dropdown-menu"
+                >
+                  <span id="model-family-dropdown-value" class="run-dropdown-value">ML</span>
+                  <span class="run-dropdown-caret" aria-hidden="true"></span>
+                </button>
+                <div id="model-family-dropdown-menu" class="run-dropdown-menu" role="listbox" hidden></div>
+              </div>
+              <select id="model_family" name="model_family" required aria-describedby="model-family-error" class="run-dropdown-native" hidden aria-hidden="true" tabindex="-1">
+                <option value="ml">ML</option>
+                <option value="dl">DL</option>
+              </select>
+              <p class="field-error" id="model-family-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <div class="field-label-row">
+                <label for="run_id">Select Model (Run ID)</label>
+                <span id="run-select-best-tag" class="best-run-tag run-select-best-tag" hidden>BEST</span>
+              </div>
+              <div id="run-dropdown" class="run-dropdown">
+                <button
+                  id="run-dropdown-toggle"
+                  class="run-dropdown-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="run-dropdown-menu"
+                >
+                  <span id="run-dropdown-value" class="run-dropdown-value">Loading runs...</span>
+                  <span class="run-dropdown-caret" aria-hidden="true"></span>
+                </button>
+                <div id="run-dropdown-menu" class="run-dropdown-menu" role="listbox" hidden></div>
+              </div>
+              <select id="run_id" name="run_id" required aria-describedby="run-id-error" class="run-dropdown-native" hidden aria-hidden="true" tabindex="-1">
+                <option value="">Loading runs...</option>
+              </select>
+              <p class="field-hint" id="run-status" aria-live="polite">Loading runs...</p>
+              <p class="field-error" id="run-id-error" hidden></p>
+            </div>
+          </div>
+
+          <!-- Model Configuration Info Panel -->
+          <div id="model-info-panel" class="model-info-panel" hidden>
+            <div class="model-info-header">
+              <h3 class="model-info-title">Model Configuration</h3>
+              <div class="model-info-header-actions">
+                <p class="model-info-subtitle" id="model-info-subtitle"></p>
+                <button id="model-info-toggle-btn" class="model-info-toggle" type="button">Show more</button>
+              </div>
+            </div>
+            <dl class="model-info-list">
+              <dt id="model-info-name-dt">Model</dt>
+              <dd id="model-info-name">-</dd>
+
+              <dt id="model-info-feature-set-dt">Feature Set</dt>
+              <dd id="model-info-feature-set">-</dd>
+
+              <dt id="model-info-text-variant-dt">Text Variant</dt>
+              <dd id="model-info-text-variant">-</dd>
+
+              <dt id="model-info-params-dt" hidden>Parameters</dt>
+              <dd id="model-info-params" hidden>-</dd>
+
+              <dt id="model-info-threshold-dt" hidden>Threshold</dt>
+              <dd id="model-info-threshold" hidden>-</dd>
+
+              <dt class="model-info-metrics-divider">Validation Metrics</dt>
+              <dd class="model-info-metrics-row" id="model-info-metrics-row">
+                <div class="metric-item">
+                  <div class="metric-label">F1 (Macro)</div>
+                  <div id="model-info-f1-macro" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">Precision (Macro)</div>
+                  <div id="model-info-precision-macro" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">Recall (Macro)</div>
+                  <div id="model-info-recall-macro" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">Accuracy</div>
+                  <div id="model-info-accuracy" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">F1 (Fake)</div>
+                  <div id="model-info-f1-fake" class="metric-value">-</div>
+                </div>
+              </dd>
+            </dl>
+          </div>
+
+          <!-- Controls Row 3: Checkbox + Button -->
+          <div class="controls-footer">
+            <div class="field toggle-field">
+              <label class="checkbox-control" for="return_explanation">
+                <span class="checkbox-label">Return Explanation</span>
+                <span class="checkbox-box">
+                  <input id="return_explanation" name="return_explanation" type="checkbox" checked>
+                  <span class="checkbox-mark" aria-hidden="true"></span>
+                </span>
+              </label>
+            </div>
+
+            <button id="predict-button" class="predict-btn" type="submit">
+              <span class="btn-label">Predict</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+
+      <!-- RESULT SECTION with Tabs -->
+      <section class="result-section" id="result-panel">
+        <div class="tabs-header">
+          <button class="tab-button active" data-tab="result-tab" aria-selected="true">
+            Result
+          </button>
+          <button class="tab-button" data-tab="history-tab" aria-selected="false">
+            History
+          </button>
+        </div>
+
+        <!-- Result Tab -->
+        <div class="tab-content active" id="result-tab" role="tabpanel" aria-labelledby="result-tab">
+          <p class="panel-note" id="result-note">Submit the form to check the prediction results.</p>
+          <div class="result-summary" id="result-summary" hidden>
+            <div class="result-headline">
+              <span class="result-badge" id="result-badge">-</span>
+              <strong id="result-confidence">-</strong>
+            </div>
+            <div class="result-metric-grid" id="result-metric-grid"></div>
+            <div class="result-model-grid" id="result-model-grid"></div>
+            <ul class="result-warnings" id="result-warnings" hidden></ul>
+          </div>
+          <div class="result-error-box" id="result-error-box" hidden></div>
+          <div class="result-json-toolbar">
+            <button type="button" id="copy-json-btn" class="copy-json-btn" disabled>Copy JSON</button>
+            <span class="copy-json-state" id="copy-json-state" aria-live="polite"></span>
+          </div>
+          <pre class="result-json" id="result-json" hidden></pre>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-content" id="history-tab" role="tabpanel" aria-labelledby="history-tab" hidden>
+          <div class="history-placeholder">
+            <div id="history-list" class="history-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer class="page-footer">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <span class="footer-brand">VN Fake News Detector</span>
+          <span class="footer-tag">Research &amp; Education</span>
+          <span class="footer-tag">Author: Nguyen Hoang Nhut Thien | Truong Anh Tuan</span>
+          <span class="footer-tag">Copyright ©2026 Ton Duc Thang University</span>
+        </div>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Docs</a>
+          <a href="/about">About</a>
+          <a href="https://github.com/TuanTruong125/vn-fake-news-detection">GitHub</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+
+  <!-- SCRIPTS -->
+  <script type="module" src="./js/main.js"></script>
+  <script>
+    (function () {
+      const toggle = document.getElementById("mobile-menu-toggle");
+      const closeBtn = document.getElementById("mobile-menu-close");
+      const overlay = document.getElementById("mobile-menu-overlay");
+      const drawer = document.getElementById("mobile-menu-drawer");
+      const drawerLinks = document.getElementById("mobile-menu-links");
+      const desktopLinks = document.querySelectorAll(".topbar-links a");
+
+      if (!toggle || !closeBtn || !overlay || !drawer || !drawerLinks || desktopLinks.length === 0) {
+        return;
+      }
+
+      drawerLinks.innerHTML = "";
+      desktopLinks.forEach((link) => {
+        const mobileLink = document.createElement("a");
+        mobileLink.textContent = link.textContent;
+        mobileLink.setAttribute("href", link.getAttribute("href") || "#");
+        if (link.hasAttribute("aria-disabled")) {
+          mobileLink.setAttribute("aria-disabled", link.getAttribute("aria-disabled") || "true");
+        }
+        drawerLinks.appendChild(mobileLink);
+      });
+
+      let closeTimer;
+      function openMenu() {
+        clearTimeout(closeTimer);
+        drawer.hidden = false;
+        overlay.hidden = false;
+        drawer.inert = false;
+        requestAnimationFrame(() => {
+          drawer.classList.add("is-open");
+          overlay.classList.add("is-open");
+        });
+        drawer.setAttribute("aria-hidden", "false");
+        toggle.setAttribute("aria-expanded", "true");
+        closeBtn.focus();
+      }
+
+      function closeMenu() {
+        if (drawer.contains(document.activeElement)) {
+          toggle.focus();
+        }
+        drawer.classList.remove("is-open");
+        overlay.classList.remove("is-open");
+        drawer.setAttribute("aria-hidden", "true");
+        drawer.inert = true;
+        toggle.setAttribute("aria-expanded", "false");
+        closeTimer = setTimeout(() => {
+          if (!drawer.classList.contains("is-open")) {
+            drawer.hidden = true;
+            overlay.hidden = true;
+          }
+        }, 260);
+      }
+
+      toggle.addEventListener("click", () => {
+        if (drawer.classList.contains("is-open")) {
+          closeMenu();
+          return;
+        }
+        openMenu();
+      });
+      closeBtn.addEventListener("click", closeMenu);
+      overlay.addEventListener("click", closeMenu);
+      drawerLinks.addEventListener("click", (event) => {
+        if (event.target && event.target.tagName === "A") {
+          closeMenu();
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && drawer.classList.contains("is-open")) {
+          closeMenu();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

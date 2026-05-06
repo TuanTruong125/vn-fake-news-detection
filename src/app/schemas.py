@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
 # Schemas for API request and response models.
 class PredictRequest(BaseModel):
-    text: str = Field(..., description="Input text to classify.")
-    run_id: str | None = Field(default=None, description="Optional run artifact override.")
-    content_type: Literal["news", "social"] | None = Field(
-        default=None,
-        description="Optional content type to control preprocessing behavior.",
+    text: str = Field(..., min_length=1, description="Input text to classify.")
+    model_family: Literal["ml", "dl"] = Field(..., description="Model family to use for prediction.")
+    run_id: str = Field(..., min_length=1, description="Required run artifact identifier.")
+    content_type: Literal["news", "social"] = Field(
+        ...,
+        description="Required content type to control preprocessing behavior.",
     )
     top_k: int | None = Field(default=None, ge=1, le=30, description="Top features per direction.")
     return_explanation: bool = Field(default=True, description="Whether to return explanation fields.")
@@ -42,13 +43,14 @@ class ExplanationDecomposition(BaseModel):
 class PredictResponse(BaseModel):
     label_id: Literal[0, 1]
     label_text: str
+    model_family: Literal["ml", "dl"]
 
     threshold_used: float
     raw_score: float
     raw_decision_score: float | None
 
     confidence: float
-    score_method: Literal["predict_proba", "decision_function_sigmoid"]
+    score_method: Literal["predict_proba", "decision_function_sigmoid", "prob_fake"]
     confidence_type: Literal["probability", "pseudo_probability"]
     is_probability: bool
 
@@ -86,3 +88,35 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     cache_entries: int
     cache_capacity: int
+    ml_model_loaded: bool | None = None
+    dl_model_loaded: bool | None = None
+    ml_cache_entries: int | None = None
+    dl_cache_entries: int | None = None
+
+
+# Error response schema.
+class ErrorResponse(BaseModel):
+    error_code: str
+    detail: str
+
+
+# Run option schema for listing available runs in the UI.
+class RunOption(BaseModel):
+    run_id: str
+    model_family: Literal["ml", "dl"]
+    is_best: bool
+    model_name: str | None = None
+    feature_set: str | None = None
+    text_variant: str | None = None
+    params: dict[str, Any] | None = None
+    threshold: float | None = None
+    val_f1_macro: float | None = None
+    val_precision_macro: float | None = None
+    val_recall_macro: float | None = None
+    val_accuracy: float | None = None
+    val_f1_fake: float | None = None
+
+
+# Response schema for listing available runs.
+class RunsResponse(BaseModel):
+    runs: list[RunOption]
