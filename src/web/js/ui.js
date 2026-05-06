@@ -54,7 +54,6 @@ function initTabSwitching() {
     button.addEventListener("click", () => {
       const tabId = button.getAttribute("data-tab");
 
-      // Remove active class from all buttons and hide all content
       tabButtons.forEach((btn) => {
         btn.classList.remove("active");
         btn.setAttribute("aria-selected", "false");
@@ -66,7 +65,6 @@ function initTabSwitching() {
         }
       });
 
-      // Add active class to clicked button and show corresponding content
       button.classList.add("active");
       button.setAttribute("aria-selected", "true");
       const activeContent = document.getElementById(tabId);
@@ -142,6 +140,7 @@ export function initUI() {
     copyStateTimer: null,
     allHistoryItems: [],
     openDropdownKey: null,
+    modelInfoExpanded: {},
   };
 
 
@@ -426,13 +425,43 @@ export function initUI() {
   }
 
 
+  // Get 1-based rank of a run within its model family after sorting (returns null if not found)
+  function getRunRank(runId, modelFamily) {
+    const normalizedRunId = String(runId ?? "").trim();
+    const normalizedFamily = String(modelFamily ?? "").toLowerCase().trim();
+    if (!normalizedRunId) return null;
+    const filtered = state.allRuns.filter((item) => {
+      const sameFamily = normalizedFamily ? String(item?.model_family ?? "").toLowerCase().trim() === normalizedFamily : true;
+      return sameFamily;
+    });
+    if (!filtered.length) return null;
+    const sorted = sortRunsByMetrics(filtered);
+    const idx = sorted.findIndex((r) => String(r?.run_id ?? "") === normalizedRunId);
+    return idx === -1 ? null : idx + 1;
+  }
+
+
   // Show/hide BEST tag for current Run ID selection.
   function updateRunSelectBestTag(runId, modelFamily) {
     if (!elements.runSelectBestTag) {
       return;
     }
-    const isBest = isBestRun(runId, modelFamily);
-    elements.runSelectBestTag.hidden = !isBest;
+    const family = String(modelFamily ?? "").toLowerCase();
+    const filtered = state.allRuns.filter((item) => String(item?.model_family ?? "").toLowerCase() === family);
+    if (!filtered.length) {
+      elements.runSelectBestTag.hidden = true;
+      return;
+    }
+    const sorted = sortRunsByMetrics(filtered);
+    const idx = sorted.findIndex((item) => String(item?.run_id ?? "") === String(runId ?? ""));
+    if (idx === -1 || idx >= 3) {
+      elements.runSelectBestTag.hidden = true;
+      return;
+    }
+    const rank = idx + 1;
+    elements.runSelectBestTag.hidden = false;
+    elements.runSelectBestTag.textContent = rank === 1 ? "1st" : rank === 2 ? "2nd" : "3rd";
+    elements.runSelectBestTag.className = `run-rank-tag run-rank-${rank} run-select-best-tag`;
   }
 
 
@@ -711,7 +740,7 @@ export function initUI() {
       return;
     }
 
-    for (const run of runs) {
+    runs.forEach((run, idx) => {
       const option = document.createElement("option");
       option.value = run.run_id;
       option.textContent = run.run_id;
@@ -723,6 +752,8 @@ export function initUI() {
       item.setAttribute("role", "option");
       item.dataset.runId = run.run_id;
       item.dataset.isBest = run.is_best ? "true" : "false";
+      const rank = idx + 1;
+      item.dataset.rank = String(rank);
       item.setAttribute("aria-selected", run.run_id === selectedRunId ? "true" : "false");
 
       const text = document.createElement("span");
@@ -730,15 +761,15 @@ export function initUI() {
       text.textContent = run.run_id;
       item.appendChild(text);
 
-      if (run.is_best) {
+      if (rank <= 3) {
         const badge = document.createElement("span");
-        badge.className = "best-run-tag run-dropdown-option-tag";
-        badge.textContent = "BEST";
+        badge.className = `run-rank-tag run-rank-${rank} run-dropdown-option-tag`;
+        badge.textContent = rank === 1 ? "1st" : rank === 2 ? "2nd" : "3rd";
         item.appendChild(badge);
       }
 
       elements.runDropdownMenu.appendChild(item);
-    }
+    });
   }
 
 
@@ -1182,11 +1213,12 @@ export function initUI() {
       runIdText.textContent = runId;
       runNode.appendChild(runIdText);
 
-      if (bestRun) {
-        const bestTag = document.createElement("span");
-        bestTag.className = "best-run-tag history-best-tag";
-        bestTag.textContent = "BEST";
-        runNode.appendChild(bestTag);
+      const rank = getRunRank(runId, modelFamilyLower);
+      if (rank && rank <= 3) {
+        const rankTag = document.createElement("span");
+        rankTag.className = `run-rank-tag history-run-rank run-rank-${rank}`;
+        rankTag.textContent = rank === 1 ? "1st" : rank === 2 ? "2nd" : "3rd";
+        runNode.appendChild(rankTag);
       }
     }
     if (statusNode) {
@@ -1397,7 +1429,6 @@ export function initUI() {
       return String(params);
     }
 
-    // Update basic fields (always show, use '-' when missing)
     const modelNameEl = document.getElementById("model-info-name");
     if (modelNameEl) {
       modelNameEl.textContent = selectedRun.model_name || "-";
@@ -1420,44 +1451,144 @@ export function initUI() {
       modelInfoPanel.dataset.family = selectedRun.model_family || "";
     }
 
-    // Params: always show (display '-' when empty). Use pre-style formatting.
+    const toggleBtn = document.getElementById("model-info-toggle-btn");
+    const globalDefault = Object.prototype.hasOwnProperty.call(state.modelInfoExpanded, '__default')
+      ? Boolean(state.modelInfoExpanded['__default'])
+      : false;
+    const expandedForRun = runId && Object.prototype.hasOwnProperty.call(state.modelInfoExpanded, runId)
+      ? Boolean(state.modelInfoExpanded[runId])
+      : globalDefault;
+
+    if (expandedForRun) {
+      modelInfoPanel.classList.add("expanded");
+    } else {
+      modelInfoPanel.classList.remove("expanded");
+    }
+    const isExpanded = expandedForRun;
+
     const paramsDtEl = document.getElementById("model-info-params-dt");
     const paramsDdEl = document.getElementById("model-info-params");
-    if (paramsDtEl) paramsDtEl.hidden = false;
+    if (paramsDtEl) paramsDtEl.hidden = !isExpanded;
     if (paramsDdEl) {
-      paramsDdEl.hidden = false;
+      paramsDdEl.hidden = !isExpanded;
       paramsDdEl.textContent = formatParams(selectedRun.params);
     }
 
-    // Threshold: always show, format or '-' when absent
     const thresholdDtEl = document.getElementById("model-info-threshold-dt");
     const thresholdDdEl = document.getElementById("model-info-threshold");
-    if (thresholdDtEl) thresholdDtEl.hidden = false;
+    if (thresholdDtEl) thresholdDtEl.hidden = !isExpanded;
     if (thresholdDdEl) {
-      thresholdDdEl.hidden = false;
+      thresholdDdEl.hidden = !isExpanded;
       thresholdDdEl.textContent = selectedRun.threshold === null || selectedRun.threshold === undefined
         ? "-"
         : String(selectedRun.threshold);
     }
 
-    // Hide empty rows for DL to avoid visual gaps while still keeping the data visible when present.
-    const featureSetDtEl = document.querySelector("#model-info-feature-set")?.previousElementSibling;
-    const textVariantDtEl = document.querySelector("#model-info-text-variant")?.previousElementSibling;
+
+    // Helper function to format metric values to 4 decimal places
+    function formatMetric(value) {
+      if (value === null || value === undefined) return "-";
+      const num = parseFloat(value);
+      return isNaN(num) ? "-" : (num * 100).toFixed(4) + "%";
+    }
+
+    const metricsRow = document.getElementById("model-info-metrics-row");
+    const metricMap = [
+      { id: "model-info-f1-macro", value: selectedRun.val_f1_macro },
+      { id: "model-info-precision-macro", value: selectedRun.val_precision_macro },
+      { id: "model-info-recall-macro", value: selectedRun.val_recall_macro },
+      { id: "model-info-accuracy", value: selectedRun.val_accuracy },
+      { id: "model-info-f1-fake", value: selectedRun.val_f1_fake },
+    ];
+
+    let anyMetricVisible = false;
+    metricMap.forEach((m) => {
+      const el = document.getElementById(m.id);
+      if (!el) return;
+      if (m.value === null || m.value === undefined) {
+        el.textContent = "-";
+        el.closest('.metric-item')?.classList.add('hidden');
+      } else {
+        el.textContent = formatMetric(m.value);
+        el.closest('.metric-item')?.classList.remove('hidden');
+        anyMetricVisible = true;
+      }
+    });
+    if (metricsRow) {
+      metricsRow.hidden = !anyMetricVisible;
+    }
+    
+    const featureSetDtEl = document.getElementById("model-info-feature-set-dt");
+    const featureSetDdEl = document.getElementById("model-info-feature-set");
+    const textVariantDtEl = document.getElementById("model-info-text-variant-dt");
+    const textVariantDdEl = document.getElementById("model-info-text-variant");
     const hasFeatureSet = Boolean(selectedRun.feature_set);
     const hasTextVariant = Boolean(selectedRun.text_variant);
-    if (featureSetDtEl) featureSetDtEl.hidden = !hasFeatureSet;
-    if (featureSetEl) featureSetEl.hidden = !hasFeatureSet;
-    if (textVariantDtEl) textVariantDtEl.hidden = !hasTextVariant;
-    if (textVariantEl) textVariantEl.hidden = !hasTextVariant;
+    if (featureSetDtEl) featureSetDtEl.hidden = !isExpanded || !hasFeatureSet;
+    if (featureSetDdEl) featureSetDdEl.hidden = !isExpanded || !hasFeatureSet;
+    if (textVariantDtEl) textVariantDtEl.hidden = !isExpanded || !hasTextVariant;
+    if (textVariantDdEl) textVariantDdEl.hidden = !isExpanded || !hasTextVariant;
+
+    if (toggleBtn && !toggleBtn.dataset.bound) {
+      toggleBtn.addEventListener("click", () => {
+        const currentRun = String(elements.runId?.value ?? runId ?? "").trim();
+        const newExpanded = !modelInfoPanel.classList.contains("expanded");
+        modelInfoPanel.classList.toggle("expanded", newExpanded);
+        if (currentRun) {
+          state.modelInfoExpanded[currentRun] = newExpanded;
+        }
+        state.modelInfoExpanded['__default'] = newExpanded;
+        displayModelInfo(currentRun);
+      });
+      toggleBtn.dataset.bound = "1";
+    }
+
+    if (toggleBtn) {
+      toggleBtn.textContent = isExpanded ? "Hide" : "Show more";
+    }
 
     modelInfoPanel.hidden = false;
+  }
+
+
+  // Sort runs by validation metrics: best run first, then higher val_f1_macro and val_f1_fake.
+  function sortRunsByMetrics(runs) {
+    const metricValue = (run, key) => {
+      const value = Number(run?.[key]);
+      return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+    };
+
+    return [...runs].sort((a, b) => {
+      if (a.is_best && !b.is_best) return -1;
+      if (!a.is_best && b.is_best) return 1;
+
+      const f1MacroA = metricValue(a, "val_f1_macro");
+      const f1MacroB = metricValue(b, "val_f1_macro");
+      if (f1MacroA !== f1MacroB) {
+        return f1MacroB - f1MacroA;
+      }
+
+      const f1FakeA = metricValue(a, "val_f1_fake");
+      const f1FakeB = metricValue(b, "val_f1_fake");
+      if (f1FakeA !== f1FakeB) {
+        return f1FakeB - f1FakeA;
+      }
+
+      const thresholdA = metricValue(a, "threshold");
+      const thresholdB = metricValue(b, "threshold");
+      if (thresholdA !== thresholdB) {
+        return thresholdB - thresholdA;
+      }
+
+      return String(a.run_id).localeCompare(String(b.run_id));
+    });
   }
 
 
   // Refresh the run options in the dropdown based on the selected model family and available runs.
   function refreshRunOptions() {
     const family = String(elements.modelFamily?.value ?? "ml").toLowerCase();
-    const filtered = state.allRuns.filter((item) => item.model_family === family);
+    let filtered = state.allRuns.filter((item) => item.model_family === family);
     const previousValue = elements.runId?.value ?? "";
     if (!elements.runId || !elements.runDropdownToggle) {
       return;
@@ -1477,12 +1608,20 @@ export function initUI() {
       return;
     }
 
+    filtered = sortRunsByMetrics(filtered);
+
     elements.runDropdownToggle.disabled = false;
     elements.runDropdownToggle.classList.remove("is-disabled");
     renderRunDropdownOptions(filtered, previousValue);
 
     const canKeep = filtered.some((item) => item.run_id === previousValue);
-    const selectedRunId = canKeep ? previousValue : filtered[0].run_id;
+    let selectedRunId;
+    if (canKeep) {
+      selectedRunId = previousValue;
+    } else {
+      const bestRun = filtered.find((item) => item.is_best);
+      selectedRunId = bestRun ? bestRun.run_id : filtered[0].run_id;
+    }
     if (elements.runStatus) {
       elements.runStatus.textContent = `${filtered.length} run(s) loaded for ${family.toUpperCase()}.`;
     }
@@ -1593,7 +1732,11 @@ export function initUI() {
       {
         key: "Model Selected (Run ID)",
         value: String(result?.run_id ?? "-"),
-        badgeText: isBestRun(result?.run_id, result?.model_family) ? "BEST" : "",
+        ...(function () {
+          const rank = getRunRank(result?.run_id, result?.model_family);
+          if (!rank || rank > 3) return {};
+          return { badgeText: rank === 1 ? "1st" : rank === 2 ? "2nd" : "3rd", badgeClass: `run-rank-${rank}` };
+        })(),
       },
       { key: "Model Name", value: String(result?.model_name ?? "-") },
       { key: "Feature Set", value: String(result?.feature_set ?? "-") },
