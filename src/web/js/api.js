@@ -119,12 +119,16 @@ export function createApiClient(options = {}) {
         run_id: String(item.run_id).trim(),
         model_family: String(item.model_family).toLowerCase(),
         is_best: Boolean(item.is_best),
-        // preserve optional metadata fields if present
         model_name: item.model_name ?? null,
         feature_set: item.feature_set ?? null,
         text_variant: item.text_variant ?? null,
         params: item.params ?? null,
         threshold: item.threshold ?? null,
+        val_f1_macro: Number.isFinite(Number(item.val_f1_macro)) ? Number(item.val_f1_macro) : null,
+        val_precision_macro: Number.isFinite(Number(item.val_precision_macro)) ? Number(item.val_precision_macro) : null,
+        val_recall_macro: Number.isFinite(Number(item.val_recall_macro)) ? Number(item.val_recall_macro) : null,
+        val_accuracy: Number.isFinite(Number(item.val_accuracy)) ? Number(item.val_accuracy) : null,
+        val_f1_fake: Number.isFinite(Number(item.val_f1_fake)) ? Number(item.val_f1_fake) : null,
       }));
   }
 

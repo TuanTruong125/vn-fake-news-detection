@@ -110,6 +110,11 @@ class RunOption(BaseModel):
     text_variant: str | None = None
     params: dict[str, Any] | None = None
     threshold: float | None = None
+    val_f1_macro: float | None = None
+    val_precision_macro: float | None = None
+    val_recall_macro: float | None = None
+    val_accuracy: float | None = None
+    val_f1_fake: float | None = None
 
 
 # Response schema for listing available runs.

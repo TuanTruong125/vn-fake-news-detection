@@ -161,16 +161,19 @@
           <div id="model-info-panel" class="model-info-panel" hidden>
             <div class="model-info-header">
               <h3 class="model-info-title">Model Configuration</h3>
-              <p class="model-info-subtitle" id="model-info-subtitle"></p>
+              <div class="model-info-header-actions">
+                <p class="model-info-subtitle" id="model-info-subtitle"></p>
+                <button id="model-info-toggle-btn" class="model-info-toggle" type="button">Show more</button>
+              </div>
             </div>
             <dl class="model-info-list">
-              <dt>Model</dt>
+              <dt id="model-info-name-dt">Model</dt>
               <dd id="model-info-name">-</dd>
 
-              <dt>Feature Set</dt>
+              <dt id="model-info-feature-set-dt">Feature Set</dt>
               <dd id="model-info-feature-set">-</dd>
 
-              <dt>Text Variant</dt>
+              <dt id="model-info-text-variant-dt">Text Variant</dt>
               <dd id="model-info-text-variant">-</dd>
 
               <dt id="model-info-params-dt" hidden>Parameters</dt>
@@ -178,6 +181,30 @@
 
               <dt id="model-info-threshold-dt" hidden>Threshold</dt>
               <dd id="model-info-threshold" hidden>-</dd>
+
+              <dt class="model-info-metrics-divider">Validation Metrics</dt>
+              <dd class="model-info-metrics-row" id="model-info-metrics-row">
+                <div class="metric-item">
+                  <div class="metric-label">F1 (Macro)</div>
+                  <div id="model-info-f1-macro" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">Precision (Macro)</div>
+                  <div id="model-info-precision-macro" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">Recall (Macro)</div>
+                  <div id="model-info-recall-macro" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">Accuracy</div>
+                  <div id="model-info-accuracy" class="metric-value">-</div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-label">F1 (Fake)</div>
+                  <div id="model-info-f1-fake" class="metric-value">-</div>
+                </div>
+              </dd>
             </dl>
           </div>
 

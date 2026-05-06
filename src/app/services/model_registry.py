@@ -78,7 +78,7 @@ class ModelRegistry:
 
 
     # List available runs for UI selection with BEST markers.
-    def list_runs_with_best(self) -> list[dict[str, str | bool]]:
+    def list_runs_with_best(self) -> list[dict[str, Any]]:
         ml_dir = self.repo_root / "models" / "ml"
         dl_dir = self.repo_root / "models" / "dl"
         runs: list[dict[str, str | bool]] = []
@@ -109,6 +109,11 @@ class ModelRegistry:
                 "text_variant": metadata.get("text_variant"),
                 "params": metadata.get("params"),
                 "threshold": metadata.get("threshold"),
+                "val_f1_macro": metadata.get("val_f1_macro"),
+                "val_precision_macro": metadata.get("val_precision_macro"),
+                "val_recall_macro": metadata.get("val_recall_macro"),
+                "val_accuracy": metadata.get("val_accuracy"),
+                "val_f1_fake": metadata.get("val_f1_fake"),
             })
         for run_id in sorted(dl_run_ids):
             metadata = self._load_dl_metadata(run_id)
@@ -121,6 +126,11 @@ class ModelRegistry:
                 "text_variant": metadata.get("text_variant"),
                 "params": metadata.get("params"),
                 "threshold": metadata.get("threshold"),
+                "val_f1_macro": metadata.get("val_f1_macro"),
+                "val_precision_macro": metadata.get("val_precision_macro"),
+                "val_recall_macro": metadata.get("val_recall_macro"),
+                "val_accuracy": metadata.get("val_accuracy"),
+                "val_f1_fake": metadata.get("val_f1_fake"),
             })
 
         return runs
@@ -135,13 +145,18 @@ class ModelRegistry:
             with metadata_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             selection = data.get("selection", {}) if isinstance(data, dict) else {}
-            threshold_calibration = data.get("threshold_calibration", {}) if isinstance(data, dict) else {}
+            val_metrics = data.get("metrics", {}).get("val", {}) if isinstance(data, dict) else {}
             return {
                 "model_name": selection.get("model_name") or data.get("model_name"),
                 "feature_set": selection.get("feature_set") or data.get("feature_set"),
                 "text_variant": selection.get("text_variant") or data.get("text_variant"),
                 "params": selection.get("params") or data.get("params"),
                 "threshold": self._resolve_threshold(data),
+                "val_f1_macro": self._safe_metric(val_metrics.get("f1_macro")),
+                "val_precision_macro": self._safe_metric(val_metrics.get("precision_macro")),
+                "val_recall_macro": self._safe_metric(val_metrics.get("recall_macro")),
+                "val_accuracy": self._safe_metric(val_metrics.get("accuracy")),
+                "val_f1_fake": self._safe_metric(val_metrics.get("f1_fake")),
             }
         except Exception:
             return {}
@@ -150,11 +165,25 @@ class ModelRegistry:
     # Load DL metadata from JSON file.
     def _load_dl_metadata(self, run_id: str) -> dict[str, Any]:
         metadata_path = self.repo_root / "models" / "dl" / run_id / "metadata.json"
+        metrics_path = self.repo_root / "models" / "dl" / run_id / "metrics.json"
         if not metadata_path.exists():
             return {}
         try:
             with metadata_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
+            metrics_data: dict[str, Any] = {}
+            if metrics_path.exists():
+                try:
+                    with metrics_path.open("r", encoding="utf-8") as f:
+                        metrics_payload = json.load(f)
+                    if isinstance(metrics_payload, dict):
+                        epoch_history = metrics_payload.get("epoch_history", [])
+                        if isinstance(epoch_history, list) and len(epoch_history) >= 3:
+                            metrics_data = epoch_history[2].get("val_metrics", {}) if isinstance(epoch_history[2], dict) else {}
+                        else:
+                            metrics_data = metrics_payload.get("metrics", {}).get("val", {}) if isinstance(metrics_payload.get("metrics"), dict) else {}
+                except Exception:
+                    metrics_data = {}
             config_snapshot = data.get("config_snapshot", {}) if isinstance(data, dict) else {}
             model_snapshot = config_snapshot.get("model", {}) if isinstance(config_snapshot, dict) else {}
             training_snapshot = config_snapshot.get("training", {}) if isinstance(config_snapshot, dict) else {}
@@ -168,9 +197,22 @@ class ModelRegistry:
                 }
                 or data.get("params"),
                 "threshold": self._resolve_threshold(data),
+                "val_f1_macro": self._safe_metric(metrics_data.get("f1_macro")),
+                "val_precision_macro": self._safe_metric(metrics_data.get("precision_macro")),
+                "val_recall_macro": self._safe_metric(metrics_data.get("recall_macro")),
+                "val_accuracy": self._safe_metric(metrics_data.get("accuracy")),
+                "val_f1_fake": self._safe_metric(metrics_data.get("f1_fake")),
             }
         except Exception:
             return {}
+
+
+    # Safely normalize metric values so sorting can use numeric comparisons.
+    def _safe_metric(self, value: Any) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
 
     # Resolve the best threshold from metadata, preferring recommended_threshold and falling back to 0.5.
