@@ -73,18 +73,6 @@ sources:
     content_type: social
     label_confidence: 0.80
 
-  - source_id: fake_news_label1
-    enabled: true
-    path: data/raw/internal/fake_news_label1.csv
-    text_columns: [text]
-    label_column: label
-    published_at_column: null
-    url_column: null
-    domain_column: null
-    source_domain_default: unknown
-    content_type: news
-    label_confidence: 0.80
-
   - source_id: fake_social_label1
     enabled: true
     path: data/raw/internal/fake_social_label1.csv
