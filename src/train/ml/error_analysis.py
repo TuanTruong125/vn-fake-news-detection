@@ -67,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-report",
         type=str,
-        default="reports/error_analysis.md",
+        default="reports/error_analysis_ml.md",
         help="Markdown report output path.",
     )
     parser.add_argument(
@@ -445,17 +445,17 @@ def build_error_analysis_markdown(
     lines.append("## Error By Source")
     lines.append(dataframe_to_markdown(by_source, float_cols=["error_rate"]))
     lines.append("")
-    lines.append("![Error By Source](figures/error_by_source.png)")
+    lines.append("![Error By Source](figures/error_ml_by_source.png)")
     lines.append("")
     lines.append("## Error By Content Type")
     lines.append(dataframe_to_markdown(by_content_type, float_cols=["error_rate"]))
     lines.append("")
-    lines.append("![Error By Content Type](figures/error_by_content_type.png)")
+    lines.append("![Error By Content Type](figures/error_ml_by_content_type.png)")
     lines.append("")
     lines.append("## Error By Length")
     lines.append(dataframe_to_markdown(by_length, float_cols=["error_rate"]))
     lines.append("")
-    lines.append("![Error By Length](figures/error_by_length.png)")
+    lines.append("![Error By Length](figures/error_ml_by_length.png)")
     lines.append("")
     lines.append("## Top False Positives")
     lines.append(dataframe_to_markdown(top_fp, float_cols=["confidence_score"]))
@@ -480,7 +480,7 @@ def run_error_analysis(
     run_id: str | None = None,
     split_name: str = "test",
     top_n: int = 20,
-    output_report: str | Path = "reports/error_analysis.md",
+    output_report: str | Path = "reports/error_analysis_ml.md",
     config_path: str | Path | None = None,
 ) -> tuple[str, Path]:
     repo_root = get_repo_root()
@@ -534,21 +534,21 @@ def run_error_analysis(
     save_error_bar_figure(
         by_source,
         category_col="source_file",
-        out_path=figures_dir / "error_by_source.png",
+        out_path=figures_dir / "error_ml_by_source.png",
         title="Error Rate by Source",
         top_k=20,
     )
     save_error_bar_figure(
         by_content_type,
         category_col="content_type",
-        out_path=figures_dir / "error_by_content_type.png",
+        out_path=figures_dir / "error_ml_by_content_type.png",
         title="Error Rate by Content Type",
         top_k=None,
     )
     save_error_bar_figure(
         by_length,
         category_col="length_bin",
-        out_path=figures_dir / "error_by_length.png",
+        out_path=figures_dir / "error_ml_by_length.png",
         title="Error Rate by Text Length Bin",
         top_k=None,
     )
@@ -595,7 +595,7 @@ def main() -> None:
     )
     print(f"[ML ERROR ANALYSIS] PASS | run_id={run_id}")
     print(f"[ML ERROR ANALYSIS] Report: {report_path.as_posix()}")
-    print(f"[ML ERROR ANALYSIS] Figures: reports/figures/error_by_source.png, error_by_content_type.png, error_by_length.png")
+    print(f"[ML ERROR ANALYSIS] Figures: reports/figures/error_ml_by_source.png, error_ml_by_content_type.png, error_ml_by_length.png")
 
 
 # Expose strict CLI-friendly error handling.
