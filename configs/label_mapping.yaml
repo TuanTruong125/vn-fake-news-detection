@@ -48,12 +48,6 @@ sources:
       "0": 0
       "1": 1
 
-  fake_news_label1:
-    label_column: label
-    mapping:
-      "1": 1
-      "1.0": 1
-
   fake_social_label1:
     label_column: label
     mapping:

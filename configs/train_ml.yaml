@@ -72,8 +72,8 @@ selection:
 
 run:
   default:
-    model: logistic_regression
+    model: linear_svm
     params:
-      C: 0.5
-    feature_set: word
+      C: 2
+    feature_set: word_char
     text_variant: text_ml_seg
