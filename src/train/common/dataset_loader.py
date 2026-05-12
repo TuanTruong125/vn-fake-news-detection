@@ -33,6 +33,7 @@ except ModuleNotFoundError:
     )
 
 
+# Error class for dataset loader issues.
 class DatasetLoaderError(Exception):
     pass
 

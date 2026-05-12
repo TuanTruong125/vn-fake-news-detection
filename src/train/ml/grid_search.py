@@ -96,6 +96,7 @@ LEADERBOARD_COLUMNS = [
 ]
 
 
+# Error class for grid search execution issues.
 class GridSearchError(Exception):
     pass
 

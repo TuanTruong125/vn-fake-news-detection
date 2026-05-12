@@ -23,10 +23,6 @@ except ModuleNotFoundError:
     from vectorizers import load_train_ml_config, resolve_config_path  # type: ignore
 
 
-class ErrorAnalysisError(Exception):
-    pass
-
-
 REQUIRED_COLUMNS = [
     "sample_id",
     "label_binary",
@@ -35,6 +31,11 @@ REQUIRED_COLUMNS = [
     "text_length",
     "text_clean",
 ]
+
+
+# Error class for error analysis stage issues.
+class ErrorAnalysisError(Exception):
+    pass
 
 
 # Resolve repository root path from current file location.
@@ -216,6 +217,16 @@ def compute_confidence_scores(model: Any, x_vec: Any, y_pred: pd.Series) -> tupl
         return confidence, "decision_function_abs"
 
     return pd.Series([float("nan")] * len(y_pred), index=y_pred.index), "unavailable"
+
+
+# Return human-readable definition for each confidence method used in reports.
+def describe_confidence_method(confidence_method: str) -> str:
+    mapping = {
+        "predict_proba_max": "predicted-class probability confidence = max(P(real), P(fake)).",
+        "decision_function_abs": "margin confidence = |decision score| (not a probability).",
+        "unavailable": "confidence unavailable for this estimator.",
+    }
+    return mapping.get(confidence_method, "confidence method description unavailable.")
 
 
 # Build row-level prediction dataframe enriched with error metadata.
@@ -436,6 +447,7 @@ def build_error_analysis_markdown(
     lines.append(f"- run_id: `{run_id}`")
     lines.append(f"- split: `{split_name}`")
     lines.append(f"- confidence_method: `{confidence_method}`")
+    lines.append(f"- confidence_definition: {describe_confidence_method(confidence_method)}")
     lines.append("")
     lines.append("## Overall")
     lines.append(f"- total_samples: `{total_samples}`")
@@ -535,21 +547,21 @@ def run_error_analysis(
         by_source,
         category_col="source_file",
         out_path=figures_dir / "error_ml_by_source.png",
-        title="Error Rate by Source",
+        title="ML Error Rate by Source",
         top_k=20,
     )
     save_error_bar_figure(
         by_content_type,
         category_col="content_type",
         out_path=figures_dir / "error_ml_by_content_type.png",
-        title="Error Rate by Content Type",
+        title="ML Error Rate by Content Type",
         top_k=None,
     )
     save_error_bar_figure(
         by_length,
         category_col="length_bin",
         out_path=figures_dir / "error_ml_by_length.png",
-        title="Error Rate by Text Length Bin",
+        title="ML Error Rate by Text Length Bin",
         top_k=None,
     )
 

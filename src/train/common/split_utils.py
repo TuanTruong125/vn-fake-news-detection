@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 
 
+# Error class for dataset validation issues during split loading and checking.
 class DatasetValidationError(Exception):
     pass
 

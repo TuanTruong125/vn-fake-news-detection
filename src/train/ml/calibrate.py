@@ -27,12 +27,13 @@ except ModuleNotFoundError:
     from vectorizers import load_train_ml_config, resolve_config_path  # type: ignore
 
 
-class CalibrationError(Exception):
-    pass
-
-
 OBJECTIVES = ["f1_macro", "f1_fake"]
 TIE_BREAKERS = ["f1_fake", "precision_fake"]
+
+
+# Error class for calibration stage issues.
+class CalibrationError(Exception):
+    pass
 
 
 # Resolve repository root path from current file location.
@@ -366,6 +367,15 @@ def build_score_distribution(scores: np.ndarray) -> dict[str, float]:
     }
 
 
+# Return human-readable definition for each calibration score method.
+def describe_score_method(score_method: str) -> str:
+    mapping = {
+        "predict_proba": "fake-score = P(fake) from predict_proba; threshold is applied directly on this probability.",
+        "decision_function_sigmoid": "fake-score = sigmoid(decision_function); threshold is applied on this normalized score.",
+    }
+    return mapping.get(score_method, "score method description unavailable.")
+
+
 # Convert one dict of metrics to markdown table text.
 def metrics_pair_to_markdown(
     before_threshold: float,
@@ -498,6 +508,8 @@ def build_report_markdown(
     lines.append(f"- run_id: {run_id}")
     lines.append(f"- text_variant: {text_variant}")
     lines.append(f"- score_method: {score_method}")
+    lines.append(f"- score_method_detail: {describe_score_method(score_method)}")
+    lines.append("- raw_score_semantics: fake-score used as threshold input for class `fake`.")
     lines.append(f"- objective: {objective}")
     lines.append(f"- tie_breaker: {tie_breaker}")
     lines.append(f"- sweep: min={min_threshold:.6f}, max={max_threshold:.6f}, step={step:.6f}")

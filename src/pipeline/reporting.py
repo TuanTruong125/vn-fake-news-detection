@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 ISSUE_COLUMNS = ["run_timestamp", "severity", "issue_code", "count", "detail"]
 
 
+# Error class for reporting stage issues.
 class ReportingError(Exception):
     pass
 
@@ -86,7 +87,7 @@ def to_md_example(value: Any, max_words: int = 10, max_chars: int = 80) -> str:
     if pd.isna(value):
         return ""
     text = str(value).replace("\n", " ").replace("\r", " ").strip()
-    # Escape markdown table separator to avoid broken columns.
+    
     text = text.replace("|", r"\|")
     if not text:
         return ""
@@ -198,7 +199,11 @@ def plot_stacked_label_distribution(
     ax.set_xlabel(group_col)
     ax.set_ylabel("count")
     ax.grid(axis="y", alpha=0.25)
-    # Show total count on top of each stacked column for easier presentation reading.
+    
+    for container in ax.containers:
+        labels = [f"{int(v)}" if float(v) > 0 else "" for v in container.datavalues]
+        ax.bar_label(container, labels=labels, label_type="center", fontsize=8, color="black")
+    
     totals = pivot.sum(axis=1).tolist()
     for idx, total in enumerate(totals):
         ax.text(idx, total + max(1.0, max(totals) * 0.01), f"{int(total)}", ha="center", va="bottom", fontsize=8)
@@ -222,7 +227,7 @@ def plot_text_length_boxplot(master_df: pd.DataFrame, output_path: Path) -> None
     ax.set_xlabel("split")
     ax.set_ylabel("text_length")
     ax.grid(axis="y", alpha=0.25)
-    # Display median values to make boxplot quantiles easy to read in slides.
+    
     for idx, median_line in enumerate(box_obj["medians"], start=1):
         median_val = float(median_line.get_ydata()[0])
         ax.text(idx, median_val, f"{median_val:.0f}", ha="center", va="bottom", fontsize=8)
@@ -381,7 +386,7 @@ def plot_top_ngrams_by_label(
         ax.set_yticklabels(grams, fontsize=8)
         ax.set_title(f"{label_name}")
         ax.grid(axis="x", alpha=0.25)
-        # Show counts at bar ends for easier manual inspection.
+        
         for bar, value in zip(bars, counts):
             ax.text(bar.get_width() + max(1, max(counts) * 0.01), bar.get_y() + bar.get_height() / 2, f"{int(value)}", va="center", fontsize=8)
     fig.suptitle(title)

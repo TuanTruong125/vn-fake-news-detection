@@ -63,6 +63,7 @@ SUMMARY_COLUMNS = [
 ]
 
 
+# Error class for feature pipeline issues.
 class FeaturePipelineError(Exception):
     pass
 

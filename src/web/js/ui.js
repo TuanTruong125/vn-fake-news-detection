@@ -1717,12 +1717,12 @@ export function initUI() {
       elements.resultBadge.textContent = label.text;
     }
     if (elements.resultConfidence) {
-      elements.resultConfidence.textContent = `Confidence: ${formatPercent(result?.confidence)}`;
+      elements.resultConfidence.textContent = `Prediction Confidence: ${formatPercent(result?.confidence)}`;
     }
 
     renderKeyValueGrid(elements.resultMetricGrid, [
       { key: "Threshold", value: String(result?.threshold_used ?? "-") },
-      { key: "Raw Score", value: String(result?.raw_score ?? "-") },
+      { key: "Fake Score (threshold input)", value: String(result?.raw_score ?? "-") },
       { key: "Processing Time", value: formatMs(result?.processing_time_ms) },
       { key: "Score Method", value: String(result?.score_method ?? "-") },
     ]);

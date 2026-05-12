@@ -29,6 +29,7 @@ STAGING_COLUMNS = [
 ]
 
 
+# Error class for ingest stage issues.
 class IngestError(Exception):
     pass
 

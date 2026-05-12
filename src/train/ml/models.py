@@ -75,10 +75,12 @@ SUMMARY_COLUMNS = [
 ]
 
 
+# Config Error class for issues during model config parsing and validation.
 class ModelConfigError(Exception):
     pass
 
 
+# Error class for runtime issues during model building, fitting, or predicting.
 class ModelRuntimeError(Exception):
     pass
 

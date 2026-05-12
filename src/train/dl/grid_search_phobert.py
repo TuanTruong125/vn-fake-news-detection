@@ -94,6 +94,7 @@ LEGACY_SEARCH_TRIAL_COLUMNS = [
 ]
 
 
+# Error class for issues during the DL hyperparameter search.
 class DlHyperparamSearchError(Exception):
     pass
 

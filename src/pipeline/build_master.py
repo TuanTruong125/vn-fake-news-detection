@@ -38,6 +38,7 @@ ALLOWED_LABEL_BINARY = {0, 1}
 ALLOWED_LABEL_NAME = {"real", "fake"}
 
 
+# Error class for build-master stage issues.
 class BuildMasterError(Exception):
     pass
 
