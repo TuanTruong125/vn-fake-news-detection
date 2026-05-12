@@ -31,6 +31,7 @@ REMOVED_COLUMNS = [
 TEXT_PREVIEW_MAX_LEN = 100
 
 
+# Error class for deduplication stage issues.
 class DeduplicateError(Exception):
     pass
 

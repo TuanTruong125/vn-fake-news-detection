@@ -39,6 +39,7 @@ except ModuleNotFoundError:
     from vectorizers import VectorizerConfigError, resolve_config_path  # type: ignore
 
 
+# Error class for evaluation stage issues.
 class EvaluationError(Exception):
     pass
 

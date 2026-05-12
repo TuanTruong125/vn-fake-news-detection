@@ -25,10 +25,23 @@ except ModuleNotFoundError:
     from train_phobert import DlTrainError, get_repo_root, load_yaml  # type: ignore
 
 
+DEFAULT_REPORT_PATH = "reports/error_analysis_dl.md"
+DEFAULT_SPLITS = "val,test"
+DEFAULT_TOP_N = 20
+DEFAULT_SOURCE_FIG = "reports/figures/error_dl_by_source.png"
+DEFAULT_CONTENT_FIG = "reports/figures/error_dl_by_content_type.png"
+DEFAULT_LENGTH_FIG = "reports/figures/error_dl_by_length.png"
+
+REQUIRED_CORE_COLUMNS = ["sample_id", "label_binary"]
+REQUIRED_CONTEXT_COLUMNS = ["content_type", "text_length"]
+
+
+# Error class for issues during DL error analysis.
 class DlErrorAnalysisError(Exception):
     pass
 
 
+# Data class to hold all relevant information for a split-level error analysis.
 @dataclass
 class SplitAnalysis:
     split_name: str
@@ -40,17 +53,6 @@ class SplitAnalysis:
     fp_fn_summary: pd.DataFrame
     top_fp: pd.DataFrame
     top_fn: pd.DataFrame
-
-
-DEFAULT_REPORT_PATH = "reports/error_analysis_dl.md"
-DEFAULT_SPLITS = "val,test"
-DEFAULT_TOP_N = 20
-DEFAULT_SOURCE_FIG = "reports/figures/error_dl_by_source.png"
-DEFAULT_CONTENT_FIG = "reports/figures/error_dl_by_content_type.png"
-DEFAULT_LENGTH_FIG = "reports/figures/error_dl_by_length.png"
-
-REQUIRED_CORE_COLUMNS = ["sample_id", "label_binary"]
-REQUIRED_CONTEXT_COLUMNS = ["content_type", "text_length"]
 
 
 # Parse CLI arguments for DL error analysis.
@@ -302,6 +304,15 @@ def add_confidence_scores(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
         return out, "prob_fake_max"
     out["confidence_score"] = pd.NA
     return out, "unavailable"
+
+
+# Return human-readable definition for each confidence method used in reports.
+def describe_confidence_method(confidence_method: str) -> str:
+    mapping = {
+        "prob_fake_max": "predicted-class probability confidence = max(P(fake), 1 - P(fake)).",
+        "unavailable": "confidence unavailable in stored predictions.",
+    }
+    return mapping.get(confidence_method, "confidence method description unavailable.")
 
 
 # Build split-level analysis dataframe by joining split metadata and predictions.
@@ -591,6 +602,11 @@ def build_report(
     length_fig: Path,
     source_col: str,
 ) -> str:
+    confidence_methods = sorted({analysis.confidence_method for analysis in split_analyses})
+    confidence_notes = "; ".join(
+        f"{method}: {describe_confidence_method(method)}" for method in confidence_methods
+    )
+
     lines: list[str] = []
     lines.append("# Error Analysis Report (DL)")
     lines.append("")
@@ -603,6 +619,7 @@ def build_report(
     lines.append(f"- run_dir: `{run_info['run_dir']}`")
     lines.append(f"- source_file_column: `{source_col}`")
     lines.append(f"- analyzed_splits: `{', '.join(selected_splits)}`")
+    lines.append(f"- confidence_definition: {confidence_notes}")
     lines.append("")
 
     lines.append("## Official Run Metrics")

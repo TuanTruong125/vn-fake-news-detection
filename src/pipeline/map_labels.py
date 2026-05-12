@@ -12,6 +12,7 @@ REQUIRED_COLUMNS = ["source_id", "label_raw"]
 ISSUE_COLUMNS = ["run_timestamp", "source_id", "severity", "issue_code", "count", "detail"]
 
 
+# Error class for label mapping stage issues.
 class MapLabelsError(Exception):
     pass
 

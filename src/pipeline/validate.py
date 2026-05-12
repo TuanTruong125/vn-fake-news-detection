@@ -43,6 +43,7 @@ PLACEHOLDER_ONLY_PATTERN = re.compile(
 )
 
 
+# Error class for validation stage issues.
 class ValidateError(Exception):
     pass
 

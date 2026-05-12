@@ -24,6 +24,7 @@ HIGH_REMOVED_RATIO_WARNING_THRESHOLD = 0.30
 TEXT_PREVIEW_MAX_LEN = 100
 
 
+# Error class for quality filter stage issues.
 class QualityFilterError(Exception):
     pass
 

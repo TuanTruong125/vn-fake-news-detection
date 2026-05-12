@@ -46,10 +46,19 @@ class PredictResponse(BaseModel):
     model_family: Literal["ml", "dl"]
 
     threshold_used: float
-    raw_score: float
-    raw_decision_score: float | None
+    raw_score: float = Field(
+        ...,
+        description="Fake-score in [0,1] used for threshold decision (label_id=1 if raw_score >= threshold_used).",
+    )
+    raw_decision_score: float | None = Field(
+        default=None,
+        description="Unnormalized model decision score (can be outside [0,1]); semantics depend on score_method.",
+    )
 
-    confidence: float
+    confidence: float = Field(
+        ...,
+        description="Predicted-class confidence in [0,1], computed as max(raw_score, 1-raw_score).",
+    )
     score_method: Literal["predict_proba", "decision_function_sigmoid", "prob_fake"]
     confidence_type: Literal["probability", "pseudo_probability"]
     is_probability: bool
