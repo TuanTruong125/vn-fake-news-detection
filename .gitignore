@@ -15,13 +15,22 @@ data/processed/*.csv
 data/raw/external/*
 !data/raw/external/.gitkeep
 
+#Experiments
+experiments/*
+!experiments/.gitkeep
+
 # Logs
 logs/*
 !logs/.gitkeep
+
+#Models
+models/*
+!models/.gitkeep
 
 # Reports
 reports/*
 reports/figures/*
 !reports/figures/.gitkeep
 
-
+# Resources
+resources/*
