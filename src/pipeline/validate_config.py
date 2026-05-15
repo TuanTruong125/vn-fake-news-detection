@@ -29,6 +29,7 @@ ALLOWED_BINARY_LABELS = {0, 1}
 MIN_DECLARED_SOURCES = 6
 
 
+# Error class for config validation stages.
 class ConfigValidationError(Exception):
     pass
 
@@ -59,7 +60,7 @@ def _read_csv_columns(csv_path: Path) -> set[str]:
         df = pd.read_csv(csv_path, nrows=0)
     except Exception as exc:  # pragma: no cover - explicit error path for CLI
         raise ConfigValidationError(f"Cannot read CSV header: {csv_path}. Error: {exc}") from exc
-    # Normalize headers to avoid false mismatch caused by leading/trailing spaces.
+    
     return {str(col).strip() for col in df.columns}
 
 
@@ -71,7 +72,7 @@ def _validate_text_columns(source_id: str, text_columns: Any) -> list[str]:
         raise ConfigValidationError(
             f"{source_id}: every item in text_columns must be a non-empty string."
         )
-    # Keep a trimmed list so config formatting spaces do not break validation.
+    
     return [col.strip() for col in text_columns]
 
 
@@ -108,7 +109,7 @@ def validate_data_sources(
         enabled = source.get("enabled", True)
         if not isinstance(enabled, bool):
             raise ConfigValidationError(f"{source_id}: enabled must be a boolean value.")
-        # Skip deep validation for disabled sources by design.
+        
         if not enabled:
             continue
 
@@ -206,7 +207,7 @@ def validate_label_mapping(
         mapping = entry.get("mapping")
         if not isinstance(mapping, dict) or not mapping:
             raise ConfigValidationError(f"{source_id}: mapping must be a non-empty key/value mapping.")
-        # Keep mapping key types predictable for downstream normalization.
+        
         if not all(isinstance(key, (str, int, bool)) for key in mapping.keys()):
             raise ConfigValidationError(
                 f"{source_id}: mapping keys must be one of str/int/bool."
@@ -219,7 +220,7 @@ def validate_label_mapping(
             raise ConfigValidationError(
                 f"{source_id}: mapping values must be only 0 or 1. Found: {sorted(target_values)}"
             )
-        # Missing one class is allowed at config level, so we emit a warning instead of failing.
+        
         if ALLOWED_BINARY_LABELS - target_values:
             missing_labels = sorted(ALLOWED_BINARY_LABELS - target_values)
             warnings.append(
@@ -241,7 +242,7 @@ def validate_schema(config: dict[str, Any]) -> None:
         raise ConfigValidationError("schema.master_schema.columns must be a list.")
 
     names = [col.get("name") for col in columns if isinstance(col, dict)]
-    # Keep strict column order to match the project report and downstream contracts.
+    
     if names != EXPECTED_MASTER_COLUMNS:
         raise ConfigValidationError(
             "Master schema columns do not match expected 13-column order.\n"
@@ -283,7 +284,6 @@ def validate_split(config: dict[str, Any]) -> None:
             raise ConfigValidationError(f"split.ratios.{key} must be a positive number.")
         ratio_total += float(value)
 
-    # Use math.isclose to avoid floating-point precision issues.
     if not math.isclose(ratio_total, 1.0, rel_tol=1e-9, abs_tol=1e-9):
         raise ConfigValidationError(f"split.ratios must sum to 1.0. Found: {ratio_total}")
 
@@ -300,7 +300,6 @@ def validate_split(config: dict[str, Any]) -> None:
     if split.get("deduplicate_before_split") is not True:
         raise ConfigValidationError("split.deduplicate_before_split must be true.")
 
-    # Force leakage checks to use deterministic text hash key.
     if split.get("leakage_key") != "hash_text":
         raise ConfigValidationError("split.leakage_key must be 'hash_text'.")
 
@@ -319,7 +318,7 @@ def main() -> None:
     declared_source_ids, enabled_source_ids, label_column_by_source = validate_data_sources(
         data_sources, repo_root
     )
-    # Keep a minimum source-count guard while allowing future source expansion.
+    
     if len(declared_source_ids) < MIN_DECLARED_SOURCES:
         raise ConfigValidationError(
             f"Expected at least {MIN_DECLARED_SOURCES} declared internal sources in "

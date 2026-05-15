@@ -44,6 +44,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 
+# Error class for evaluation stage issues.
 class EvaluationError(Exception):
     pass
 

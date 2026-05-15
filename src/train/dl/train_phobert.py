@@ -33,48 +33,6 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 
-class DlTrainError(Exception):
-    pass
-
-
-@dataclass
-class SplitData:
-    sample_ids: list[str]
-    texts: list[str]
-    labels: np.ndarray
-
-
-@dataclass
-class TrainArtifacts:
-    run_id: str
-    run_dir: Path
-    best_checkpoint_dir: Path
-    metrics: dict[str, Any]
-    metadata_path: Path
-
-
-@dataclass
-class ExploreArtifacts:
-    run_id: str
-    best_epoch: int
-    elapsed_seconds: float
-    val_metrics: dict[str, float]
-
-
-class TextDataset(Dataset):
-    def __init__(self, encodings: dict[str, torch.Tensor], labels: np.ndarray) -> None:
-        self.encodings = encodings
-        self.labels = torch.tensor(labels, dtype=torch.long)
-
-    def __len__(self) -> int:
-        return int(self.labels.shape[0])
-
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
-        item = {k: v[idx] for k, v in self.encodings.items()}
-        item["labels"] = self.labels[idx]
-        return item
-
-
 RUNS_COLUMNS = [
     "run_id",
     "run_timestamp",
@@ -98,6 +56,53 @@ RUNS_COLUMNS = [
     "status",
     "notes",
 ]
+
+
+# Error class for issues during the DL training process.
+class DlTrainError(Exception):
+    pass
+
+
+# Data class to hold split-level data after loading and validation, ready for encoding.
+@dataclass
+class SplitData:
+    sample_ids: list[str]
+    texts: list[str]
+    labels: np.ndarray
+
+
+# Data class to hold all relevant information for a completed training run, including paths to artifacts and computed metrics.
+@dataclass
+class TrainArtifacts:
+    run_id: str
+    run_dir: Path
+    best_checkpoint_dir: Path
+    metrics: dict[str, Any]
+    metadata_path: Path
+
+
+# Data class to hold relevant information for an early-exit exploratory run, without saving artifacts or requiring full epochs.
+@dataclass
+class ExploreArtifacts:
+    run_id: str
+    best_epoch: int
+    elapsed_seconds: float
+    val_metrics: dict[str, float]
+
+
+# Custom Dataset class to serve tokenized inputs and labels to the model during training and evaluation.
+class TextDataset(Dataset):
+    def __init__(self, encodings: dict[str, torch.Tensor], labels: np.ndarray) -> None:
+        self.encodings = encodings
+        self.labels = torch.tensor(labels, dtype=torch.long)
+
+    def __len__(self) -> int:
+        return int(self.labels.shape[0])
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        item = {k: v[idx] for k, v in self.encodings.items()}
+        item["labels"] = self.labels[idx]
+        return item
 
 
 # Resolve repository root from current file location.

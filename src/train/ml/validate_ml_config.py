@@ -22,6 +22,7 @@ MODEL_CLASSES = {
 LOGISTIC_SOLVERS = {"lbfgs", "liblinear", "newton-cg", "newton-cholesky", "sag", "saga"}
 
 
+# Config Error class for issues during ML config parsing and validation.
 class MlConfigValidationError(Exception):
     pass
 

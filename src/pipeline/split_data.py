@@ -15,6 +15,7 @@ RATIO_PASS_TOL = 0.02
 RATIO_WARN_TOL = 0.05
 
 
+# Error class for split stage issues.
 class SplitDataError(Exception):
     pass
 
@@ -368,7 +369,7 @@ def main() -> None:
     if status != "FAIL":
         processed_dir = repo_root / "data" / "processed"
         processed_dir.mkdir(parents=True, exist_ok=True)
-        # Write updated master with split assignment for downstream reproducibility.
+        
         df_master_out.to_csv(processed_dir / "master_dataset_v1.csv", index=False, encoding="utf-8-sig")
         train_df.to_csv(processed_dir / "train.csv", index=False, encoding="utf-8-sig")
         val_df.to_csv(processed_dir / "val.csv", index=False, encoding="utf-8-sig")

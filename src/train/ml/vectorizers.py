@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
 
 
+# Config Error class for issues during vectorizer config parsing and validation.
 class VectorizerConfigError(Exception):
     pass
 

@@ -23,10 +23,6 @@ except ModuleNotFoundError:
     from vectorizers import load_train_ml_config, resolve_config_path  # type: ignore
 
 
-class ErrorAnalysisError(Exception):
-    pass
-
-
 REQUIRED_COLUMNS = [
     "sample_id",
     "label_binary",
@@ -35,6 +31,11 @@ REQUIRED_COLUMNS = [
     "text_length",
     "text_clean",
 ]
+
+
+# Error class for error analysis stage issues.
+class ErrorAnalysisError(Exception):
+    pass
 
 
 # Resolve repository root path from current file location.
@@ -67,7 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-report",
         type=str,
-        default="reports/error_analysis.md",
+        default="reports/error_analysis_ml.md",
         help="Markdown report output path.",
     )
     parser.add_argument(
@@ -216,6 +217,16 @@ def compute_confidence_scores(model: Any, x_vec: Any, y_pred: pd.Series) -> tupl
         return confidence, "decision_function_abs"
 
     return pd.Series([float("nan")] * len(y_pred), index=y_pred.index), "unavailable"
+
+
+# Return human-readable definition for each confidence method used in reports.
+def describe_confidence_method(confidence_method: str) -> str:
+    mapping = {
+        "predict_proba_max": "predicted-class probability confidence = max(P(real), P(fake)).",
+        "decision_function_abs": "margin confidence = |decision score| (not a probability).",
+        "unavailable": "confidence unavailable for this estimator.",
+    }
+    return mapping.get(confidence_method, "confidence method description unavailable.")
 
 
 # Build row-level prediction dataframe enriched with error metadata.
@@ -436,6 +447,7 @@ def build_error_analysis_markdown(
     lines.append(f"- run_id: `{run_id}`")
     lines.append(f"- split: `{split_name}`")
     lines.append(f"- confidence_method: `{confidence_method}`")
+    lines.append(f"- confidence_definition: {describe_confidence_method(confidence_method)}")
     lines.append("")
     lines.append("## Overall")
     lines.append(f"- total_samples: `{total_samples}`")
@@ -445,17 +457,17 @@ def build_error_analysis_markdown(
     lines.append("## Error By Source")
     lines.append(dataframe_to_markdown(by_source, float_cols=["error_rate"]))
     lines.append("")
-    lines.append("![Error By Source](figures/error_by_source.png)")
+    lines.append("![Error By Source](figures/error_ml_by_source.png)")
     lines.append("")
     lines.append("## Error By Content Type")
     lines.append(dataframe_to_markdown(by_content_type, float_cols=["error_rate"]))
     lines.append("")
-    lines.append("![Error By Content Type](figures/error_by_content_type.png)")
+    lines.append("![Error By Content Type](figures/error_ml_by_content_type.png)")
     lines.append("")
     lines.append("## Error By Length")
     lines.append(dataframe_to_markdown(by_length, float_cols=["error_rate"]))
     lines.append("")
-    lines.append("![Error By Length](figures/error_by_length.png)")
+    lines.append("![Error By Length](figures/error_ml_by_length.png)")
     lines.append("")
     lines.append("## Top False Positives")
     lines.append(dataframe_to_markdown(top_fp, float_cols=["confidence_score"]))
@@ -480,7 +492,7 @@ def run_error_analysis(
     run_id: str | None = None,
     split_name: str = "test",
     top_n: int = 20,
-    output_report: str | Path = "reports/error_analysis.md",
+    output_report: str | Path = "reports/error_analysis_ml.md",
     config_path: str | Path | None = None,
 ) -> tuple[str, Path]:
     repo_root = get_repo_root()
@@ -534,22 +546,22 @@ def run_error_analysis(
     save_error_bar_figure(
         by_source,
         category_col="source_file",
-        out_path=figures_dir / "error_by_source.png",
-        title="Error Rate by Source",
+        out_path=figures_dir / "error_ml_by_source.png",
+        title="ML Error Rate by Source",
         top_k=20,
     )
     save_error_bar_figure(
         by_content_type,
         category_col="content_type",
-        out_path=figures_dir / "error_by_content_type.png",
-        title="Error Rate by Content Type",
+        out_path=figures_dir / "error_ml_by_content_type.png",
+        title="ML Error Rate by Content Type",
         top_k=None,
     )
     save_error_bar_figure(
         by_length,
         category_col="length_bin",
-        out_path=figures_dir / "error_by_length.png",
-        title="Error Rate by Text Length Bin",
+        out_path=figures_dir / "error_ml_by_length.png",
+        title="ML Error Rate by Text Length Bin",
         top_k=None,
     )
 
@@ -595,7 +607,7 @@ def main() -> None:
     )
     print(f"[ML ERROR ANALYSIS] PASS | run_id={run_id}")
     print(f"[ML ERROR ANALYSIS] Report: {report_path.as_posix()}")
-    print(f"[ML ERROR ANALYSIS] Figures: reports/figures/error_by_source.png, error_by_content_type.png, error_by_length.png")
+    print(f"[ML ERROR ANALYSIS] Figures: reports/figures/error_ml_by_source.png, error_ml_by_content_type.png, error_ml_by_length.png")
 
 
 # Expose strict CLI-friendly error handling.

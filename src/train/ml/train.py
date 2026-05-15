@@ -85,6 +85,7 @@ RUNS_COLUMNS = [
 ]
 
 
+# Error class for issues during the overall training run execution and tracking.
 class TrainRunError(Exception):
     pass
 

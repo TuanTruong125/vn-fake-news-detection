@@ -285,12 +285,14 @@ class DLInferenceEngine:
             return_tensors="pt",
         )
         score, raw_decision_score = self._score_from_model(bundle.model, encoded["input_ids"], encoded["attention_mask"])
+        fake_score = float(score)
 
         if input_token_count > dl_max_length:
             warnings.append(f"Input tokens exceeded max_length={dl_max_length}. Applied token truncation.")
 
-        label_id = 1 if score >= bundle.threshold_used else 0
+        label_id = 1 if fake_score >= bundle.threshold_used else 0
         label_text = self.label_map.get(label_id, str(label_id))
+        prediction_confidence = max(fake_score, 1.0 - fake_score)
 
         explanation_payload = build_dl_explanation(
             tokenizer=bundle.tokenizer,
@@ -309,9 +311,9 @@ class DLInferenceEngine:
             "label_text": label_text,
             "model_family": "dl",
             "threshold_used": float(bundle.threshold_used),
-            "raw_score": float(score),
+            "raw_score": fake_score,
             "raw_decision_score": raw_decision_score,
-            "confidence": float(score),
+            "confidence": float(prediction_confidence),
             "score_method": bundle.score_method,
             "confidence_type": "probability",
             "is_probability": True,

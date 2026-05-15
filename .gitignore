@@ -12,6 +12,8 @@ data/staging/*.csv
 !data/staging/.gitkeep
 data/processed/*.csv
 !data/processed/.gitkeep
+data/raw/external/*
+!data/raw/external/.gitkeep
 
 # Logs
 logs/*

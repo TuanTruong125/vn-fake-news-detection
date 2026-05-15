@@ -22,6 +22,7 @@ PUNCT_SIDE_EFFECT_WARNING_MIN_BASE = 20
 PUNCT_SIDE_EFFECT_WARNING_DROP_RATIO = 0.25
 
 
+# Error class for normalization stage issues.
 class NormalizeError(Exception):
     pass
 
@@ -71,12 +72,15 @@ def determine_status(source_issues: list[dict[str, Any]]) -> str:
 
 # Normalize whitespace with explicit tab/space/newline rules.
 def normalize_whitespace(text: str) -> str:
+    
     # Convert Windows-style line endings and tabs before collapsing spaces.
     out = text.replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
+
     # Remove spaces around newlines and collapse repeated spaces.
     out = re.sub(r"[ ]+\n", "\n", out)
     out = re.sub(r"\n[ ]+", "\n", out)
     out = re.sub(r"[ ]{2,}", " ", out)
+
     # Keep at most one empty line by collapsing repeated newlines.
     out = re.sub(r"\n{2,}", "\n", out)
     return out.strip()
@@ -116,15 +120,18 @@ def count_suspected_glued_tokens(text: str) -> int:
             continue
         if not re.fullmatch(r"[A-Za-zÀ-ỹ]+", bare):
             continue
+        
         # Focus only on tokens carrying Vietnamese diacritics.
         decomposed = unicodedata.normalize("NFD", bare.lower())
         has_diacritic = any(unicodedata.category(ch) == "Mn" for ch in decomposed)
         if not has_diacritic:
             continue
+        
         # Convert to base Latin letters and count vowel groups as syllable proxy.
         base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
         base = base.replace("đ", "d")
         vowel_groups = re.findall(r"[aeiouy]+", base)
+
         # Mark as suspicious when one token likely contains multiple glued syllables.
         if len(vowel_groups) >= 2:
             count += 1

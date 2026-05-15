@@ -412,9 +412,11 @@ class MLInferenceEngine:
         prep = self._normalize_and_tokenize(text=text, content_type=resolved_content_type, text_variant=bundle.text_variant, feature_set=bundle.feature_set)
         x_vec = bundle.vectorizer.transform([prep.text_for_model])
         score, raw_decision_score, score_method, confidence_type, is_probability = self._compute_score(bundle.model, x_vec)
+        fake_score = float(score)
         threshold_used = bundle.threshold_used
-        label_id = 1 if score >= threshold_used else 0
+        label_id = 1 if fake_score >= threshold_used else 0
         label_text = self.label_map.get(label_id, str(label_id))
+        prediction_confidence = max(fake_score, 1.0 - fake_score)
 
         explanation_payload = {
             "explanation_available": False,
@@ -439,9 +441,9 @@ class MLInferenceEngine:
             "label_text": label_text,
             "model_family": "ml",
             "threshold_used": float(threshold_used),
-            "raw_score": float(score),
+            "raw_score": fake_score,
             "raw_decision_score": raw_decision_score,
-            "confidence": float(score),
+            "confidence": float(prediction_confidence),
             "score_method": score_method,
             "confidence_type": confidence_type,
             "is_probability": bool(is_probability),

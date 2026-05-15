@@ -46,6 +46,7 @@ SOCIAL_HASHTAG_PREFIX = "HASHTAG_"
 EMPTY_RATIO_WARNING_THRESHOLD = 0.20
 
 
+# Error class for preparing ML text issues.
 class PrepareMlTextError(Exception):
     pass
 
@@ -219,11 +220,14 @@ def normalize_hashtag_token(match: re.Match[str]) -> str:
 # Preserve key numeric/entity semantics before tokenization.
 def light_normalize_text(text: str) -> str:
     out = text
+    
     # Keep numeric value of thousands separators (7.628 -> 7628, 12,500 -> 12500).
     out = THOUSAND_DOT_PATTERN.sub("", out)
     out = THOUSAND_COMMA_PATTERN.sub("", out)
+    
     # Preserve hyphenated entities by converting in-word hyphen to underscore.
     out = INTRAWORD_HYPHEN_PATTERN.sub("_", out)
+    
     # Canonicalize common disease form for stable features.
     out = COVID_VARIANT_PATTERN.sub("covid_19", out)
     return out
@@ -295,6 +299,7 @@ def tokenize_and_filter(
         filtered_tokens: list[str] = []
         for tok in tokens:
             token_plain = tok.replace("_", "")
+            
             # Preserve short numeric tokens (e.g., 2, 7) because they can carry factual cues.
             if token_plain.isdigit() or len(token_plain) >= min_token_length:
                 filtered_tokens.append(tok)
