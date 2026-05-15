@@ -8,7 +8,7 @@ from src.pipeline import deduplicate
 from src.utils.hashing import md5_text
 
 
-# Build one quality_filter row with required deduplicate columns.
+# Build: Quality filter row with required deduplicate columns for test fixtures
 def build_quality_row(source_id: str, row_index_raw: int, text_clean: str) -> dict[str, object]:
     return {
         "source_id": source_id,
@@ -19,14 +19,14 @@ def build_quality_row(source_id: str, row_index_raw: int, text_clean: str) -> di
     }
 
 
-# Validate hash utility determinism for identical and different inputs.
+# Test: MD5 hash utility produces deterministic output for identical inputs, unique for different
 def test_md5_text_is_deterministic() -> None:
     text = "Tin gia tieng Viet"
     assert md5_text(text) == md5_text(text)
     assert md5_text(text) != md5_text(text + " khac")
 
 
-# Validate global dedup keeps first occurrence deterministically across sources.
+# Test: Global dedup keeps first occurrence deterministically across multiple sources
 def test_deduplicate_main_global_keep_first(
     tmp_repo: Path,
     write_yaml,
@@ -79,7 +79,7 @@ def test_deduplicate_main_global_keep_first(
     assert len(removed) == 1
 
 
-# Validate stage failure when all expected quality_filter source files are missing.
+# Test: Stage fails when all required quality_filter source files are missing
 def test_deduplicate_missing_input_file_fails(
     tmp_repo: Path,
     write_yaml,

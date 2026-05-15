@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
 import yaml
+
+
+# Ensure the repository root is importable as src.* during test collection.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 # Build a minimal temporary repo layout used by pipeline unit tests.

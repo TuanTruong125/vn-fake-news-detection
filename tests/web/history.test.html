@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- Test: History store persistence and item normalization (add, remove, clear, getById, setAll) -->
+<html lang="en">
+<head><meta charset="utf-8"><title>History Tests</title></head>
+<body>
+  <div id="test-result">Running...</div>
+  <script type="module">
+    import { assert, report } from './test-utils.js';
+
+    // Setup: Create history store with cleared localStorage
+    const { createHistoryStore } = await import('../../src/web/js/history.js');
+    localStorage.clear();
+    const store = createHistoryStore();
+    // Test: add() returns normalized item and persists to storage
+    const item = store.add({
+      id: 'hist_1',
+      created_at: '2026-04-04T00:00:00.000Z',
+      request: { text: 'Xin chao', model_family: 'ML', run_id: 'run_a', content_type: 'news', top_k: 5, return_explanation: true },
+      response: { label_text: 'fake' },
+      error: null,
+      meta: { status: 'success', latency_ms: 123 },
+    });
+
+    assert(item?.id === 'hist_1', 'add should return normalized item');
+    // Test: getAll() and getById() retrieve stored items
+    assert(store.getAll().length === 1, 'getAll should return stored item');
+    assert(store.getById('hist_1')?.request?.run_id === 'run_a', 'getById should resolve item');
+    // Test: remove() and clear() delete items from storage
+    assert(store.remove('hist_1').length === 0, 'remove should empty store');
+    // Test: setAll() bulk-replaces storage contents, clear() empties store
+    store.setAll([{ id: 'x', created_at: '2026-01-01T00:00:00.000Z', request: { text: '', model_family: 'ml', run_id: '', content_type: 'news', top_k: null, return_explanation: false }, response: null, error: null, meta: { status: 'error', latency_ms: null } }]);
+    store.clear();
+    assert(store.getAll().length === 0, 'clear should remove all history');
+
+    report('pass', 'history tests passed');
+  </script>
+</body>
+</html>

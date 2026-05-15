@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- Test: API client functionality (request creation, fingerprinting, payload normalization, run filtering) -->
+<html lang="en">
+<head><meta charset="utf-8"><title>API Tests</title></head>
+<body>
+  <div id="test-result">Running...</div>
+  <script type="module">
+    import { assert, report } from './test-utils.js';
+
+    // Setup: Mock fetch to capture HTTP calls and validate request/response handling
+    const calls = [];
+    globalThis.fetch = async (url, init) => {
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (name) => (name === 'content-type' ? 'application/json' : '') },
+        json: async () => ({
+          runs: [
+            { run_id: 'run_a', model_family: 'ML', is_best: 1, model_name: 'M', feature_set: 'f', text_variant: 'seg', val_f1_macro: '0.9', val_precision_macro: 0.8, val_recall_macro: 0.7, val_accuracy: 0.95, val_f1_fake: 0.88 },
+            { run_id: 123, model_family: 'DL' },
+          ],
+        }),
+        text: async () => '',
+      };
+    };
+
+    // Test: API client creation and request normalization
+    const { createApiClient } = await import('../../src/web/js/api.js');
+    const api = createApiClient({ baseUrl: 'https://api.example.com', timeoutMs: 1000 });
+
+    // Test: predict() method sends normalized payload with fingerprint header
+    const predictPayload = await api.predict({ text: 'Xin chao', model_family: 'ml', run_id: 'run_a', content_type: 'news', top_k: 5 });
+    assert(calls[0].url === 'https://api.example.com/predict', 'predict should call /predict');
+    assert(calls[0].init.method === 'POST', 'predict should use POST');
+    assert(String(calls[0].init.headers['X-Client-Text-Fingerprint']).startsWith('fnv1a32:'), 'predict should send fingerprint header');
+    assert(typeof predictPayload === 'object', 'predict should resolve JSON payload');
+
+    // Test: fetchRuns() filters and normalizes invalid runs, coerces metrics to numbers
+    const runs = await api.fetchRuns();
+    assert(runs.length === 1, 'fetchRuns should filter invalid runs');
+    assert(runs[0].run_id === 'run_a', 'fetchRuns should keep run_id');
+    assert(runs[0].val_f1_macro === 0.9, 'fetchRuns should coerce metrics');
+
+    report('pass', 'api tests passed');
+  </script>
+</body>
+</html>
