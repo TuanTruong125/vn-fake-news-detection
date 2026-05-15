@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- Test: Bootstrap initialization, window.app exposure, run loading, best run resolution -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Main Tests</title></head>
+<body>
+  <div id="test-result">Running...</div>
+  <script type="module">
+    import { assert, report } from './test-utils.js';
+    import { WEB_APP_HTML } from './web-fixture.js';
+
+    // Setup: Initialize DOM and mock fetch for /runs endpoint
+    document.body.innerHTML = WEB_APP_HTML;
+
+    // Setup: Mock runs endpoint response
+    const runsPayload = {
+      runs: [
+        { run_id: 'run_best', model_family: 'ml', is_best: true, model_name: 'Model A', feature_set: 'tfidf', text_variant: 'lower', threshold: 0.5, val_f1_macro: 0.91, val_precision_macro: 0.92, val_recall_macro: 0.93, val_accuracy: 0.94, val_f1_fake: 0.95 },
+      ],
+    };
+
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith('/runs')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => runsPayload,
+          text: async () => '',
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        json: async () => ({ ok: true, url, init }),
+        text: async () => '',
+      };
+    };
+
+    // Test: Main module loads and exposes window.app with initialized UI
+    await import('../../src/web/js/main.js');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert(Boolean(window.app), 'main should expose window.app');
+    // Test: Bootstrap loads runs and populates UI with best run selection
+    assert(window.app.ui.elements.runStatus.textContent.includes('loaded'), 'bootstrap should load runs');
+    assert(window.app.ui.getDefaultRunIdForFamily('ml') === 'run_best', 'app should resolve best run');
+
+    report('pass', 'main bootstrap tests passed');
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "vn-fake-news-detection",
+  "private": true,
+  "scripts": {
+    "test:web": "node --test tests/web/index.test.mjs tests/web/css.test.mjs"
+  }
+}

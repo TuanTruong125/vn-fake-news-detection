@@ -1,0 +1,81 @@
+<!doctype html>
+<!-- Test: UI layer functionality (form payload, validation, rendering, history hydration) -->
+<html lang="en">
+<head><meta charset="utf-8"><title>UI Tests</title></head>
+<body>
+  <div id="test-result">Running...</div>
+  <script type="module">
+    import { assert, report } from './test-utils.js';
+    import { WEB_APP_HTML } from './web-fixture.js';
+
+    // Setup: Initialize UI with fixture DOM and load run options
+    document.body.innerHTML = WEB_APP_HTML;
+    const { initUI } = await import('../../src/web/js/ui.js');
+    const ui = initUI();
+
+    ui.loadRunOptions([
+      { run_id: 'run_best', model_family: 'ml', is_best: true, model_name: 'Model A', feature_set: 'tfidf', text_variant: 'lower', threshold: 0.5, val_f1_macro: 0.91, val_precision_macro: 0.92, val_recall_macro: 0.93, val_accuracy: 0.94, val_f1_fake: 0.95 },
+      { run_id: 'run_other', model_family: 'ml', is_best: false, model_name: 'Model B', feature_set: 'char', text_variant: 'seg', threshold: 0.4, val_f1_macro: 0.81, val_precision_macro: 0.82, val_recall_macro: 0.83, val_accuracy: 0.84, val_f1_fake: 0.85 },
+    ]);
+    // Test: Form payload extraction and normalization
+
+    ui.elements.text.value = 'Đây là một bài viết có đủ độ dài để hợp lệ.';
+    ui.elements.modelFamily.value = 'ml';
+    ui.elements.contentType.value = 'news';
+    ui.elements.runId.value = 'run_best';
+    ui.elements.topK.value = '5';
+
+    // Test: getPayload() normalizes form input and coerces types
+    const payload = ui.getPayload();
+    assert(payload.model_family === 'ml', 'getPayload should normalize model family');
+    assert(payload.top_k === 5, 'getPayload should coerce top_k');
+
+    // Test: validatePayload() accepts valid input and rejects invalid
+    const validationErrors = ui.validatePayload(payload);
+    assert(Object.keys(validationErrors).length === 0, 'validatePayload should accept valid input');
+
+    // Test: renderResult() displays prediction with formatted confidence, model info, and warnings
+    ui.renderResult({
+      label_text: 'fake',
+      confidence: 0.8765,
+      threshold_used: 0.5,
+      raw_score: 1.23,
+      processing_time_ms: 24.5,
+      score_method: 'predict_proba',
+      model_family: 'ml',
+      run_id: 'run_best',
+      model_name: 'Model A',
+      feature_set: 'tfidf',
+      warnings: ['warn-one'],
+      explanation_available: false,
+      explanation_reason: 'not enabled',
+    });
+
+    assert(ui.elements.resultSummary.hidden === false, 'renderResult should show summary');
+    assert(ui.elements.resultBadge.textContent === 'FAKE', 'renderResult should resolve fake badge');
+    assert(ui.elements.resultConfidence.textContent.includes('87.65%'), 'renderResult should format confidence');
+    assert(ui.elements.resultWarnings.hidden === false, 'renderResult should show warnings');
+    // Test: renderError() displays error box with code and message
+
+    ui.renderError({ errorCode: 'E001', message: 'Backend failed', raw: { detail: 'x' } });
+    assert(ui.elements.resultErrorBox.hidden === false, 'renderError should show error box');
+    assert(ui.elements.resultErrorBox.textContent.includes('[E001]'), 'renderError should include error code');
+    // Test: applyHistoryItem() hydrates form and renders result from history
+
+    ui.applyHistoryItem({
+      // Test: History item fully populates form and shows previous result
+      request: { text: 'History text', model_family: 'ml', run_id: 'run_best', content_type: 'news', top_k: 7, return_explanation: true },
+      response: { label_text: 'real', confidence: 0.9, threshold_used: 0.5, raw_score: 0.2, model_family: 'ml', run_id: 'run_best', model_name: 'Model A', feature_set: 'tfidf' },
+      error: null,
+      meta: { status: 'success', latency_ms: 20 },
+    });
+    assert(ui.elements.text.value === 'History text', 'applyHistoryItem should hydrate form');
+    assert(ui.elements.resultBadge.textContent === 'REAL', 'applyHistoryItem should render result');
+
+    // Test: getDefaultRunIdForFamily() returns best run for family
+    assert(ui.getDefaultRunIdForFamily('ml') === 'run_best', 'getDefaultRunIdForFamily should prefer best run');
+
+    report('pass', 'ui tests passed');
+  </script>
+</body>
+</html>
