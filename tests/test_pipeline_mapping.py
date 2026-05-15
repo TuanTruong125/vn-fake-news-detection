@@ -8,7 +8,7 @@ import pandas as pd
 from src.pipeline.map_labels import map_one_source
 
 
-# Build one normalized row that map_labels stage can consume.
+# Build: Normalized row structure that map_labels stage can process
 def build_normalize_row(source_id: str, label_raw: str, row_index_raw: int = 0) -> dict[str, Any]:
     return {
         "source_id": source_id,
@@ -20,14 +20,14 @@ def build_normalize_row(source_id: str, label_raw: str, row_index_raw: int = 0) 
     }
 
 
-# Write normalize input file for one source.
+# Create: Normalize input file for one source with test data
 def write_normalize_file(repo_root: Path, source_id: str, rows: list[dict[str, Any]]) -> None:
     path = repo_root / "data" / "staging" / f"normalize_{source_id}.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(path, index=False, encoding="utf-8-sig")
 
 
-# Validate pass case for numeric raw labels mapped to binary labels.
+# Test: Numeric raw labels are mapped to binary labels with pass status
 def test_map_one_source_pass_numeric_labels(tmp_repo: Path) -> None:
     source_id = "src_num"
     rows = [
