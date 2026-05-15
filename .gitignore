@@ -24,8 +24,4 @@ reports/*
 reports/figures/*
 !reports/figures/.gitkeep
 
-# Resouresces
-resources/vncorenlp/
 
-# Models
-models/*
